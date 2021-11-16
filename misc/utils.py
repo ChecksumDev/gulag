@@ -236,7 +236,7 @@ def _install_synchronous_excepthook() -> None:
                 "ext/config.sample.py for additional info.", Ansi.LCYAN)
             return
 
-        printc(f'gulag v{glob.version!r} ran into an issue '
+        printc(f'circles v1.0.0 ran into an issue '
                'before starting up :(', Ansi.RED)
         real_excepthook(type_, value, traceback) # type: ignore
 

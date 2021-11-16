@@ -1273,7 +1273,7 @@ async def reload(ctx: Context) -> Optional[str]:
 async def server(ctx: Context) -> Optional[str]:
     """Retrieve performance data about the server."""
 
-    build_str = f'gulag v{glob.version!r} ({glob.config.domain})'
+    build_str = f'circles v1.0.0 ({glob.config.domain})'
 
     # get info about this process
     proc = psutil.Process(os.getpid())

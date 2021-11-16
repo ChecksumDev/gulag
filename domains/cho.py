@@ -70,7 +70,7 @@ async def bancho_http_handler(conn: Connection) -> bytes:
     packets = glob.bancho_packets['all']
 
     return b'<!DOCTYPE html>' + '<br>'.join((
-        f'Running gulag v{glob.version}',
+        f'Running circles v1.0.0',
         f'Players online: {len(glob.players) - 1}',
         '<a href="https://github.com/cmyui/gulag">Source code</a>',
         '',
@@ -375,7 +375,7 @@ RESTRICTED_MSG = (
 
 WELCOME_NOTIFICATION = packets.notification(
     f'Welcome back to {BASE_DOMAIN}!\n'
-    f'Running gulag v{glob.version}.'
+    f'Running circles v1.0.0'
 )
 
 OFFLINE_NOTIFICATION = packets.notification(

@@ -21,12 +21,10 @@ from pathlib import Path
 
 import cmyui
 from cmyui.logging import RGB, log
-from pymongo import MongoClient
 
 import bg_loops
 import misc.context
 import misc.utils
-import objects.collections
 from objects import glob  # (includes config)
 
 # set the current working directory to /gulag
@@ -35,10 +33,6 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 if not os.path.exists('config.py'):
     misc.utils.create_config_from_default()
     raise SystemExit(1)
-
-
-# !! review code that uses this before modifying it.
-glob.version = cmyui.Version(3, 5, 4)
 
 GEOLOC_DB_FILE = Path.cwd() / 'ext/GeoLite2-City.mmdb'
 
@@ -60,10 +54,10 @@ async def run_server() -> None:
 
     # fetch our server's endpoints; gulag supports
     # osu!'s handlers across multiple domains.
-    from domains.ava import domain as a_ppy_sh
     from domains.cho import domain as c_ppy_sh  # /c[e4-6]?.ppy.sh/
-    from domains.map import domain as b_ppy_sh
     from domains.osu import domain as osu_ppy_sh
+    from domains.ava import domain as a_ppy_sh
+    from domains.map import domain as b_ppy_sh
     glob.app.add_domains({c_ppy_sh, osu_ppy_sh,
                           a_ppy_sh, b_ppy_sh})
 
@@ -92,6 +86,8 @@ async def run_server() -> None:
 
         listening_sock.listen(glob.config.max_conns)
         log(f'-> Listening @ {glob.config.server_addr}', RGB(0x00ff7f))
+        log(f'-> Total users: {glob.db.users.estimated_document_count()}', RGB(0x00ff7f))
+        log(f'-> Max connections: {glob.config.max_conns}', RGB(0x00ff7f))
 
         glob.ongoing_conns = []
         glob.shutting_down = False
@@ -121,11 +117,8 @@ async def main() -> int:
     glob.loop = asyncio.get_running_loop()
 
     async with (
-        misc.context.acquire_http_session(glob.has_internet) as glob.http_session,
-    ):
-        mongo = MongoClient(f'mongodb+srv://{glob.config.mongo["user"]}:{glob.config.mongo["password"]}@{glob.config.mongo["host"]}/{glob.config.mongo["db"]}?retryWrites=true&w=majority')
-        glob.db = mongo[glob.config.mongo['db']]
-        
+            misc.context.acquire_http_session(glob.has_internet) as glob.http_session,
+            misc.context.acquire_mongo_db(f'mongodb+srv://{glob.config.mongo["user"]}:{glob.config.mongo["password"]}@{glob.config.mongo["host"]}/{glob.config.mongo["db"]}?retryWrites=true&w=majority', glob.config.mongo) as glob.db):
         await misc.utils.check_for_dependency_updates()
 
         with (
@@ -135,7 +128,7 @@ async def main() -> int:
             # TODO: refactor debugging so
             # this can be moved to `run_server`.
             glob.app = cmyui.Server(
-                name=f'gulag v{glob.version}',
+                name=f'circles v1.0.0',
                 gzip=4, debug=glob.config.debug
             )
 

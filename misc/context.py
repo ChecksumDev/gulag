@@ -28,8 +28,8 @@ async def acquire_http_session(has_internet: bool) -> AsyncIterator[Optional[aio
 
 
 @asynccontextmanager
-async def acquire_mongo_db(config: dict[str, Any]):
-    mongo_client = MongoClient(**config)
+async def acquire_mongo_db(args: str, config: dict) -> Iterator[Optional[MongoClient]]:
+    mongo_client = MongoClient(args).get_database(config["db"])
     try:
         yield mongo_client
     finally:
