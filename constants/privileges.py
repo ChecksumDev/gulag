@@ -1,13 +1,9 @@
 from enum import IntFlag
 from enum import unique
 
-from misc.utils import escape_enum
-from misc.utils import pymysql_encode
-
 __all__ = ('Privileges', 'ClientPrivileges')
 
 @unique
-@pymysql_encode(escape_enum)
 class Privileges(IntFlag):
     """Server side user privileges."""
 
@@ -36,7 +32,6 @@ class Privileges(IntFlag):
     Staff = Mod | Admin | Dangerous
 
 @unique
-@pymysql_encode(escape_enum)
 class ClientPrivileges(IntFlag):
     """Client side user privileges."""
 

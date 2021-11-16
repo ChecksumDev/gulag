@@ -19,8 +19,7 @@ from py3rijndael import RijndaelCbc
 from constants.clientflags import ClientFlags
 from constants.gamemodes import GameMode
 from constants.mods import Mods
-from misc.utils import escape_enum
-from misc.utils import pymysql_encode
+
 from objects import glob
 from objects.beatmap import Beatmap
 from objects.beatmap import ensure_local_osu_file
@@ -37,20 +36,21 @@ __all__ = (
 
 BEATMAPS_PATH = Path.cwd() / '.data/osu'
 
+
 @unique
 class Grade(IntEnum):
     # NOTE: these are implemented in the opposite order
     # as osu! to make more sense with <> operators.
-    N  = 0
-    F  = 1
-    D  = 2
-    C  = 3
-    B  = 4
-    A  = 5
-    S  = 6 # S
-    SH = 7 # HD S
-    X  = 8 # SS
-    XH = 9 # HD SS
+    N = 0
+    F = 1
+    D = 2
+    C = 3
+    B = 4
+    A = 5
+    S = 6  # S
+    SH = 7  # HD S
+    X = 8  # SS
+    XH = 9  # HD SS
 
     @classmethod
     @functools.cache
@@ -74,8 +74,8 @@ class Grade(IntEnum):
         else:
             raise ValueError(f'Invalid format specifier {format_spec}')
 
+
 @unique
-@pymysql_encode(escape_enum)
 class SubmissionStatus(IntEnum):
     # TODO: make a system more like bancho's?
     FAILED = 0
@@ -88,6 +88,7 @@ class SubmissionStatus(IntEnum):
             self.SUBMITTED: 'Submitted',
             self.BEST: 'Best'
         }[self]
+
 
 class Score:
     """\
@@ -151,7 +152,7 @@ class Score:
         # TODO: perhaps abstract these differently
         # since they're mode dependant? feels weird..
         self.n300: Optional[int] = None
-        self.n100: Optional[int] = None # n150 for taiko
+        self.n100: Optional[int] = None  # n150 for taiko
         self.n50: Optional[int] = None
         self.nmiss: Optional[int] = None
         self.ngeki: Optional[int] = None
@@ -172,7 +173,7 @@ class Score:
 
         self.prev_best: Optional[Score] = None
 
-    def __repr__(self) -> str: # maybe shouldn't be so long?
+    def __repr__(self) -> str:  # maybe shouldn't be so long?
         return (f'<{self.acc:.2f}% {self.max_combo}x {self.nmiss}M '
                 f'#{self.rank} on {self.bmap.full} for {self.pp:,.2f}pp>')
 
@@ -183,7 +184,7 @@ class Score:
         """Create a score object from sql using it's scoreid."""
         # XXX: perhaps in the future this should take a gamemode rather
         # than just the sql table? just faster on the current setup :P
-        res = await glob.db.fetch(
+        res = glob.db.fetch(
             'SELECT id, map_md5, userid, pp, score, '
             'max_combo, mods, acc, n300, n100, n50, '
             'nmiss, ngeki, nkatu, grade, perfect, '
@@ -246,7 +247,7 @@ class Score:
             return
 
         map_md5 = data[0]
-        pname = data[1].rstrip() # rstrip 1 space if client has supporter
+        pname = data[1].rstrip()  # rstrip 1 space if client has supporter
         s.online_checksum = data[2]
 
         # get the map & player for the score.
@@ -274,12 +275,12 @@ class Score:
          s.score, s.max_combo) = map(int, data[3:11])
 
         s.perfect = data[11] == 'True'
-        _grade = data[12] # letter grade
+        _grade = data[12]  # letter grade
         s.mods = Mods(int(data[13]))
         s.passed = data[14] == 'True'
         s.mode = GameMode.from_params(int(data[15]), s.mods)
 
-        s.play_time = datetime.now() # TODO: use data[16]
+        s.play_time = datetime.now()  # TODO: use data[16]
 
         s.client_flags = ClientFlags(data[17].count(' ') & ~4)
 
@@ -322,7 +323,7 @@ class Score:
             scoring_metric = 'score'
             score = self.score
 
-        res = await glob.db.fetch(
+        res = glob.db.fetch(
             f'SELECT COUNT(*) AS c FROM {scores_table} s '
             'INNER JOIN users u ON u.id = s.userid '
             'WHERE s.map_md5 = %s AND s.mode = %s '
@@ -337,7 +338,7 @@ class Score:
         """Calculate PP and star rating for our score."""
         mode_vn = self.mode.as_vanilla
 
-        if mode_vn == 0: # std
+        if mode_vn == 0:  # std
             with OppaiWrapper('oppai-ng/liboppai.so') as ezpp:
                 if self.mods:
                     ezpp.set_mods(int(self.mods))
@@ -346,7 +347,7 @@ class Score:
                     ezpp.set_mode(mode_vn)
 
                 ezpp.set_combo(self.max_combo)
-                ezpp.set_nmiss(self.nmiss) # clobbers acc
+                ezpp.set_nmiss(self.nmiss)  # clobbers acc
                 ezpp.set_accuracy_percent(self.acc)
 
                 ezpp.calculate(osu_file_path)
@@ -357,7 +358,7 @@ class Score:
                 else:
                     # TODO: report to logserver
                     return (0.0, 0.0)
-        elif mode_vn in (1, 2): # taiko, catch
+        elif mode_vn in (1, 2):  # taiko, catch
             beatmap = PeaceMap(osu_file_path)
             peace = PeaceCalculator()
 
@@ -378,7 +379,7 @@ class Score:
             else:
                 # TODO: report to logserver
                 return (0.0, 0.0)
-        elif mode_vn == 3: # mania
+        elif mode_vn == 3:  # mania
             beatmap = PeaceMap(osu_file_path)
             peace = PeaceCalculator()
 
@@ -405,7 +406,7 @@ class Score:
 
         # find any other `status = 2` scores we have
         # on the map. If there are any, store
-        res = await glob.db.fetch(
+        res = glob.db.fetch(
             f'SELECT id, pp FROM {scores_table} '
             'WHERE userid = %s AND map_md5 = %s '
             'AND mode = %s AND status = 2',
@@ -433,7 +434,7 @@ class Score:
         """Calculate the accuracy of our score."""
         mode_vn = self.mode.as_vanilla
 
-        if mode_vn == 0: # osu!
+        if mode_vn == 0:  # osu!
             total = self.n300 + self.n100 + self.n50 + self.nmiss
 
             if total == 0:
@@ -446,7 +447,7 @@ class Score:
                 (self.n50 * 50.0)
             ) / (total * 300.0)
 
-        elif mode_vn == 1: # osu!taiko
+        elif mode_vn == 1:  # osu!taiko
             total = self.n300 + self.n100 + self.nmiss
 
             if total == 0:
@@ -455,7 +456,7 @@ class Score:
 
             self.acc = 100.0 * ((self.n100 * 0.5) + self.n300) / total
 
-        elif mode_vn == 2: # osu!catch
+        elif mode_vn == 2:  # osu!catch
             total = (self.n300 + self.n100 + self.n50 +
                      self.nkatu + self.nmiss)
 
@@ -465,7 +466,7 @@ class Score:
 
             self.acc = 100.0 * (self.n300 + self.n100 + self.n50) / total
 
-        elif mode_vn == 3: # osu!mania
+        elif mode_vn == 3:  # osu!mania
             total = (self.n300 + self.n100 + self.n50 +
                      self.ngeki + self.nkatu + self.nmiss)
 

@@ -4,7 +4,6 @@ from enum import unique
 
 from constants.mods import Mods
 from misc.utils import escape_enum
-from misc.utils import pymysql_encode
 
 __all__ = ('GameMode',)
 
@@ -35,7 +34,6 @@ gm_sql = (
 )
 
 @unique
-@pymysql_encode(escape_enum)
 class GameMode(IntEnum):
     vn_std   = 0
     vn_taiko = 1

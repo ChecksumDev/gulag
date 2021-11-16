@@ -18,7 +18,6 @@ from constants.gamemodes import GameMode
 from constants.mods import Mods
 from constants.types import osuTypes
 from misc.utils import escape_enum
-from misc.utils import pymysql_encode
 from objects import glob
 #from objects.beatmap import BeatmapInfo
 from objects.match import Match
@@ -35,7 +34,6 @@ if TYPE_CHECKING:
 # for clean access within packet pack/unpack.
 
 @unique
-@pymysql_encode(escape_enum)
 class ClientPackets(IntEnum):
     CHANGE_ACTION = 0
     SEND_PUBLIC_MESSAGE = 1
@@ -91,7 +89,6 @@ class ClientPackets(IntEnum):
         return f'<{self.name} ({self.value})>'
 
 @unique
-@pymysql_encode(escape_enum)
 class ServerPackets(IntEnum):
     USER_ID = 5
     SEND_MESSAGE = 7

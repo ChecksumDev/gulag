@@ -1,37 +1,28 @@
 from typing import TYPE_CHECKING
 
 # this is used externally, i.e. `glob.config.attr`
-import config # type: ignore
+import config  # type: ignore
 
 # this file contains no actualy definitions
 if TYPE_CHECKING:
     import asyncio
     import ipaddress
     from datetime import datetime
-    from typing import Optional
-    from typing import Type
-    from typing import TypedDict
-    from typing import Union
+    from typing import Optional, Type, TypedDict, Union
 
+    import geoip2.database
     from aiohttp.client import ClientSession
-    from cmyui.mysql import AsyncSQLPool
     from cmyui.version import Version
     from cmyui.web import Server
     from datadog import ThreadStats
-    import geoip2.database
+    #from objects.score import Score
+    from packets import BasePacket, ClientPackets
+    from pymongo.database import Database
 
     from objects.achievement import Achievement
-    from objects.collections import Players
-    from objects.collections import Channels
-    from objects.collections import Matches
-    from objects.beatmap import Beatmap
-    from objects.beatmap import BeatmapSet
-    from objects.collections import Clans
-    from objects.collections import MapPools
+    from objects.beatmap import Beatmap, BeatmapSet
+    from objects.collections import Channels, Clans, MapPools, Matches, Players
     from objects.player import Player
-    #from objects.score import Score
-    from packets import BasePacket
-    from packets import ClientPackets
 
     IPAddress = Union[ipaddress.IPv4Address, ipaddress.IPv6Address]
 
@@ -74,13 +65,12 @@ version: 'Version'
 geoloc_db: 'Optional[geoip2.database.Reader]'
 
 # currently registered api tokens
-api_keys: dict[str, int] # {api_key: player_id}
+api_keys: dict[str, int]  # {api_key: player_id}
 
 # list of registered packets
 bancho_packets: dict[str, 'dict[ClientPackets, Type[BasePacket]]']
 
-# active connections
-db: 'AsyncSQLPool'
+db: 'Database'
 
 has_internet: bool
 shutting_down: bool
@@ -97,24 +87,24 @@ datadog: 'Optional[ThreadStats]'
 cache: 'Cache' = {
     # algorithms like brypt these are intentionally designed to be
     # slow; we'll cache the results to speed up subsequent logins.
-    'bcrypt': {}, # {bcrypt: md5, ...}
+    'bcrypt': {},  # {bcrypt: md5, ...}
 
     # converting from a stringified ip address to a python ip
     # object is pretty expensive, so we'll cache known ones.
-    'ip': {}, # {ip_str: IPAddress, ...}
+    'ip': {},  # {ip_str: IPAddress, ...}
 
     # we'll cache results for osu! client update requests since they
     # are relatively frequently and won't change very frequently.
     # cache all beatmap data calculated while online. this way,
     # the most requested maps will inevitably always end up cached.
-    'beatmap': {}, # {md5: map, id: map, ...}
-    'beatmapset': {}, # {bsid: map_set}
+    'beatmap': {},  # {md5: map, id: map, ...}
+    'beatmapset': {},  # {bsid: map_set}
 
     # cache all beatmaps which are unsubmitted or need an update,
     # since their osu!api requests will fail and thus we'll do the
     # request multiple times which is quite slow & not great.
-    'unsubmitted': set(), # {md5, ...}
-    'needs_update': set() # {md5, ...}
+    'unsubmitted': set(),  # {md5, ...}
+    'needs_update': set()  # {md5, ...}
 }
 
 loop: 'asyncio.AbstractEventLoop'

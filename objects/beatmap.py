@@ -11,14 +11,13 @@ from typing import Any
 from typing import Mapping
 from typing import Optional
 
-import aiomysql
+
 from cmyui.logging import Ansi
 from cmyui.logging import log
 
 import misc.utils
 from constants.gamemodes import GameMode
-from misc.utils import escape_enum
-from misc.utils import pymysql_encode
+
 from objects import glob
 
 __all__ = ('ensure_local_osu_file', 'RankedStatus',
@@ -80,7 +79,6 @@ async def ensure_local_osu_file(
 # but we have nothing to do but deal with it B).
 
 @unique
-@pymysql_encode(escape_enum)
 class RankedStatus(IntEnum):
     """Server side osu! beatmap ranked statuses.
        Same as used in osu!'s /web/getscores.php.
@@ -352,7 +350,7 @@ class Beatmap:
                 # from the db, or the osu!api. we want to get
                 # the whole set cached all at once to minimize
                 # osu!api requests overall in the long run.
-                res = await glob.db.fetch(
+                res = glob.db.fetch(
                     'SELECT set_id '
                     'FROM maps '
                     'WHERE md5 = %s',
@@ -393,7 +391,7 @@ class Beatmap:
             # or the osu!api. we want to get the whole set
             # cached all at once to minimize osu!api
             # requests overall in the long run
-            res = await glob.db.fetch(
+            res = glob.db.fetch(
                 'SELECT set_id '
                 'FROM maps '
                 'WHERE id = %s',
@@ -699,62 +697,6 @@ class BeatmapSet:
             return glob.cache['beatmapset'][bsid]
 
     @classmethod
-    async def _from_bsid_sql(cls, bsid: int) -> Optional['BeatmapSet']:
-        """Fetch a mapset from the database by set id."""
-        async with glob.db.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as db_cursor:
-                await db_cursor.execute(
-                    'SELECT last_osuapi_check '
-                    'FROM mapsets '
-                    'WHERE id = %s',
-                    [bsid]
-                )
-
-                if db_cursor.rowcount == 0:
-                    return
-
-                set_res = await db_cursor.fetchone()
-
-                await db_cursor.execute(
-                    'SELECT md5, id, set_id, '
-                    'artist, title, version, creator, '
-                    'filename, last_update, total_length, '
-                    'max_combo, status, frozen, '
-                    'plays, passes, mode, bpm, '
-                    'cs, od, ar, hp, diff '
-                    'FROM maps '
-                    'WHERE set_id = %s',
-                    [bsid]
-                )
-
-                if db_cursor.rowcount == 0:
-                    return
-
-                bmap_set = cls(id=bsid, **set_res)
-
-                async for row in db_cursor:
-                    bmap = Beatmap(**row)
-
-                    # XXX: tempfix for gulag <v3.4.1,
-                    # where filenames weren't stored.
-                    if not bmap.filename:
-                        bmap.filename = (
-                            '{artist} - {title} ({creator}) [{version}].osu'
-                        ).format(**row).translate(IGNORED_BEATMAP_CHARS)
-
-                        await glob.db.execute(
-                            'UPDATE maps '
-                            'SET filename = %s '
-                            'WHERE id = %s',
-                            [bmap.filename, bmap.id]
-                        )
-
-                    bmap.set = bmap_set
-                    bmap_set.maps.append(bmap)
-
-        return bmap_set
-
-    @classmethod
     async def _from_bsid_osuapi(cls, bsid: int) -> Optional['BeatmapSet']:
         """Fetch a mapset from the osu!api by set id."""
         if api_data := await osuapiv1_getbeatmaps(s=bsid):
@@ -766,7 +708,7 @@ class BeatmapSet:
             # XXX: pre-mapset gulag support
             # select all current beatmaps
             # that're frozen in the db
-            res = await glob.db.fetchall(
+            res = glob.db.fetchall(
                 'SELECT id, status '
                 'FROM maps '
                 'WHERE set_id = %s '

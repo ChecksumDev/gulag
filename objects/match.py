@@ -11,7 +11,7 @@ from typing import Sequence
 from typing import TYPE_CHECKING
 from typing import Union
 
-import aiomysql
+
 from cmyui.logging import Ansi
 from cmyui.logging import log
 
@@ -19,8 +19,7 @@ import packets
 from constants import regexes
 from constants.gamemodes import GameMode
 from constants.mods import Mods
-from misc.utils import escape_enum
-from misc.utils import pymysql_encode
+
 from objects import glob
 from objects.beatmap import Beatmap
 
@@ -33,7 +32,7 @@ if TYPE_CHECKING:
 __all__ = (
     'SlotStatus',
     'MatchTeams',
-    #'MatchTypes',
+    # 'MatchTypes',
     'MatchWinConditions',
     'MatchTeamTypes',
     'ScoreFrame',
@@ -44,52 +43,53 @@ __all__ = (
 
 BASE_DOMAIN = glob.config.domain
 
+
 @unique
-@pymysql_encode(escape_enum)
 class SlotStatus(IntEnum):
-    open      = 1
-    locked    = 2
+    open = 1
+    locked = 2
     not_ready = 4
-    ready     = 8
-    no_map    = 16
-    playing   = 32
-    complete  = 64
-    quit      = 128
+    ready = 8
+    no_map = 16
+    playing = 32
+    complete = 64
+    quit = 128
 
     has_player = not_ready | ready | no_map | playing | complete
 
+
 @unique
-@pymysql_encode(escape_enum)
 class MatchTeams(IntEnum):
     neutral = 0
-    blue    = 1
-    red     = 2
+    blue = 1
+    red = 2
+
 
 """
 # implemented by osu! and send between client/server,
 # quite frequently even, but seems useless??
 @unique
-@pymysql_encode(escape_enum)
 class MatchTypes(IntEnum):
     standard  = 0
     powerplay = 1 # literally no idea what this is for
 """
 
-@unique
-@pymysql_encode(escape_enum)
-class MatchWinConditions(IntEnum):
-    score    = 0
-    accuracy = 1
-    combo    = 2
-    scorev2  = 3
 
 @unique
-@pymysql_encode(escape_enum)
+class MatchWinConditions(IntEnum):
+    score = 0
+    accuracy = 1
+    combo = 2
+    scorev2 = 3
+
+
+@unique
 class MatchTeamTypes(IntEnum):
     head_to_head = 0
-    tag_coop     = 1
-    team_vs      = 2
-    tag_team_vs  = 3
+    tag_coop = 1
+    team_vs = 2
+    tag_team_vs = 3
+
 
 @dataclass
 class ScoreFrame:
@@ -113,6 +113,7 @@ class ScoreFrame:
     combo_portion: Optional[float] = None
     bonus_portion: Optional[float] = None
 
+
 class MapPool:
     __slots__ = ('id', 'name', 'created_at', 'created_by', 'maps')
 
@@ -123,12 +124,13 @@ class MapPool:
         self.created_at = created_at
         self.created_by = created_by
 
-        self.maps: dict[tuple[Mods, int], Beatmap] = {} # {(mods: Mods, slot: int): Beatmap(), ...}
+        # {(mods: Mods, slot: int): Beatmap(), ...}
+        self.maps: dict[tuple[Mods, int], Beatmap] = {}
 
     def __repr__(self) -> str:
         return f'<{self.name}>'
 
-    async def maps_from_sql(self, db_cursor: aiomysql.DictCursor) -> None:
+    async def maps_from_sql(self) -> None:
         """Retrieve all maps from sql to populate `self.maps`."""
         await db_cursor.execute(
             'SELECT map_id, mods, slot '
@@ -158,6 +160,7 @@ class MapPool:
 
             key: tuple[Mods, int] = (Mods(row['mods']), row['slot'])
             self.maps[key] = bmap
+
 
 class Slot:
     """An individual player slot in an osu! multiplayer match."""
@@ -189,10 +192,12 @@ class Slot:
         self.loaded = False
         self.skipped = False
 
+
 StartingTimers = dict[
-                       # start         alerts               time
+    # start         alerts               time
     str, Optional[Union['TimerHandle', list['TimerHandle'], float]]
 ]
+
 
 class Match:
     """\
@@ -222,11 +227,11 @@ class Match:
         'map_id', 'map_md5', 'map_name', 'prev_map_id',
         'mods', 'freemods', 'mode',
         'chat', 'slots',
-        #'type',
+        # 'type',
         'team_type', 'win_condition',
         'in_progress', 'starting', 'seed',
 
-        'pool', # mappool currently selected
+        'pool',  # mappool currently selected
 
         # scrimmage stuff
         'is_scrimming', 'match_points', 'bans',
@@ -246,13 +251,13 @@ class Match:
         self.map_id = 0
         self.map_md5 = ''
         self.map_name = ''
-        self.prev_map_id = 0 # previously chosen map
+        self.prev_map_id = 0  # previously chosen map
 
         self.mods = Mods.NOMOD
         self.mode = GameMode.vn_std
         self.freemods = False
 
-        self.chat: Optional['Channel'] = None #multiplayer
+        self.chat: Optional['Channel'] = None  # multiplayer
         self.slots = [Slot() for _ in range(16)]
 
         #self.type = MatchTypes.standard
@@ -263,19 +268,21 @@ class Match:
         self.starting: StartingTimers = {
             'start': None, 'alerts': None, 'time': None
         }
-        self.seed = 0 # used for mania random mod
+        self.seed = 0  # used for mania random mod
 
         self.pool: Optional[MapPool] = None
 
         # scrimmage stuff
         self.is_scrimming = False
-        self.match_points: dict[Union[MatchTeams, Player], int] = defaultdict(int)
+        self.match_points: dict[Union[MatchTeams,
+                                      Player], int] = defaultdict(int)
         self.bans: set[tuple[Mods, int]] = set()
-        self.winners: list[Union[Player, MatchTeams, None]] = [] # none for tie
+        # none for tie
+        self.winners: list[Union[Player, MatchTeams, None]] = []
         self.winning_pts = 0
-        self.use_pp_scoring = False # only for scrims
+        self.use_pp_scoring = False  # only for scrims
 
-        self.tourney_clients: set[int] = set() # player ids
+        self.tourney_clients: set[int] = set()  # player ids
 
     @property
     def url(self) -> str:
@@ -314,6 +321,7 @@ class Match:
     def __getitem__(self, index: int) -> Slot: ...
     @overload
     def __getitem__(self, index: slice) -> list[Slot]: ...
+
     def __getitem__(self, index: Union[int, slice]) -> Union[Slot, list[Slot]]:
         return self.slots[index]
 
@@ -411,7 +419,7 @@ class Match:
         """Await score submissions from all players in completed state."""
         scores: 'dict[Union[MatchTeams, Player], int]' = defaultdict(int)
         didnt_submit: list['Player'] = []
-        time_waited = 0 # allow up to 10s (total, not per player)
+        time_waited = 0  # allow up to 10s (total, not per player)
 
         ffa = self.team_type in (MatchTeamTypes.head_to_head,
                                  MatchTeamTypes.tag_coop)
@@ -490,7 +498,7 @@ class Match:
 
         if scores:
             ffa = self.team_type in (MatchTeamTypes.head_to_head,
-                                    MatchTeamTypes.tag_coop)
+                                     MatchTeamTypes.tag_coop)
 
             # all scores are equal, it was a tie.
             if len(scores) != 1 and len(set(scores.values())) == 1:
@@ -498,7 +506,8 @@ class Match:
                 return self.chat.send_bot('The point has ended in a tie!')
 
             # Find the winner & increment their matchpoints.
-            winner: Union[Player, MatchTeams] = max(scores, key=lambda k: scores[k])
+            winner: Union[Player, MatchTeams] = max(
+                scores, key=lambda k: scores[k])
             self.winners.append(winner)
             self.match_points[winner] += 1
 
@@ -533,21 +542,22 @@ class Match:
                 else:
                     # no winner, just announce the match points so far.
                     # for ffa, we'll only announce the top <=3 players.
-                    m_points = sorted(self.match_points.items(), key=lambda x: x[1])
+                    m_points = sorted(
+                        self.match_points.items(), key=lambda x: x[1])
                     m = f"Total Score: {' | '.join([f'{k.name} - {v}' for k, v in m_points])}"
 
                 msg.append(m)
                 del m
 
-            else: # teams
+            else:  # teams
                 if r_match := regexes.tourney_matchname.match(self.name):
                     match_name = r_match['name']
                     team_names = {MatchTeams.blue: r_match['T1'],
-                                MatchTeams.red: r_match['T2']}
+                                  MatchTeams.red: r_match['T2']}
                 else:
                     match_name = self.name
                     team_names = {MatchTeams.blue: 'Blue',
-                                MatchTeams.red: 'Red'}
+                                  MatchTeams.red: 'Red'}
 
                 # teams are binary, so we have a loser.
                 loser = MatchTeams({1: 2, 2: 1}[winner])
@@ -578,7 +588,8 @@ class Match:
                                f'with a score of {wmp} - {lmp}! Congratulations!')
                 else:
                     # no winner, just announce the match points so far.
-                    msg.append(f'Total Score: {wname} | {wmp} - {lmp} | {lname}')
+                    msg.append(
+                        f'Total Score: {wname} | {wmp} - {lmp} | {lname}')
 
             if didnt_submit:
                 self.chat.send_bot(

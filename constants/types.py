@@ -1,13 +1,11 @@
 from enum import IntEnum
 from enum import unique
 
-from misc.utils import escape_enum
-from misc.utils import pymysql_encode
+
 
 __all__ = ('osuTypes',)
 
 @unique
-@pymysql_encode(escape_enum)
 class osuTypes(IntEnum):
     # integral
     i8  = 0

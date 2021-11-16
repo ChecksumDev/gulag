@@ -1,7 +1,7 @@
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from enum import IntEnum
 from enum import unique
 from functools import cached_property
@@ -11,7 +11,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Union
 
-import aiomysql
+
 from cmyui.discord import Webhook
 from cmyui.logging import Ansi
 from cmyui.logging import log
@@ -21,9 +21,7 @@ from constants.gamemodes import GameMode
 from constants.mods import Mods
 from constants.privileges import ClientPrivileges
 from constants.privileges import Privileges
-from misc.utils import escape_enum
 from misc.utils import Geolocation
-from misc.utils import pymysql_encode
 from objects import glob
 from objects.channel import Channel
 from objects.match import Match
@@ -52,32 +50,33 @@ __all__ = (
 
 BASE_DOMAIN = glob.config.domain
 
-@unique
-@pymysql_encode(escape_enum)
-class PresenceFilter(IntEnum):
-    """osu! client side filter for which users the player can see."""
-    Nil     = 0
-    All     = 1
-    Friends = 2
 
 @unique
-@pymysql_encode(escape_enum)
+class PresenceFilter(IntEnum):
+    """osu! client side filter for which users the player can see."""
+    Nil = 0
+    All = 1
+    Friends = 2
+
+
+@unique
 class Action(IntEnum):
     """The client's current state."""
-    Idle         = 0
-    Afk          = 1
-    Playing      = 2
-    Editing      = 3
-    Modding      = 4
-    Multiplayer  = 5
-    Watching     = 6
-    Unknown      = 7
-    Testing      = 8
-    Submitting   = 9
-    Paused       = 10
-    Lobby        = 11
+    Idle = 0
+    Afk = 1
+    Playing = 2
+    Editing = 3
+    Modding = 4
+    Multiplayer = 5
+    Watching = 6
+    Unknown = 7
+    Testing = 8
+    Submitting = 9
+    Paused = 10
+    Lobby = 11
     Multiplaying = 12
-    OsuDirect    = 13
+    OsuDirect = 13
+
 
 @dataclass
 class ModeData:
@@ -89,9 +88,10 @@ class ModeData:
     plays: int
     playtime: int
     max_combo: int
-    rank: int # global
+    rank: int  # global
 
-    grades: dict[Grade, int] # XH, X, SH, S, A
+    grades: dict[Grade, int]  # XH, X, SH, S, A
+
 
 @dataclass
 class Status:
@@ -104,8 +104,11 @@ class Status:
     map_id: int = 0
 
 # temporary menu-related stuff
+
+
 async def bot_hello(p: 'Player') -> None:
     p.send_bot(f'hello {p.name}!')
+
 
 async def notif_hello(p: 'Player') -> None:
     p.enqueue(packets.notification(f'hello {p.name}!'))
@@ -121,10 +124,12 @@ MAIN_MENU = Menu('Main Menu', {
     menu_keygen(): (MenuCommands.Advance, MENU2)
 })
 
+
 class LastNp(TypedDict):
     bmap: 'Beatmap'
     mode_vn: int
     timeout: float
+
 
 class Player:
     """\
@@ -178,9 +183,9 @@ class Player:
         '__dict__'
     )
 
-    def __init__(self, id: int, name: str,
+    def __init__(self, _id: int, name: str,
                  priv: Union[Privileges, int], **extras: Any) -> None:
-        self.id = id
+        self.id = _id
         self.name = name
         self.safe_name = self.make_safe(self.name)
 
@@ -214,7 +219,8 @@ class Player:
         self.stealth = False
 
         self.clan: Optional['Clan'] = extras.get('clan', None)
-        self.clan_priv: Optional['ClanPrivileges'] = extras.get('clan_priv', None)
+        self.clan_priv: Optional['ClanPrivileges'] = extras.get(
+            'clan_priv', None)
 
         self.achievements: set['Achievement'] = set()
 
@@ -247,7 +253,7 @@ class Player:
         }
 
         # store the last beatmap /np'ed by the user.
-        self.last_np: LastNp = { # type: ignore
+        self.last_np: LastNp = {  # type: ignore
             'bmap': None,
             'mode_vn': None,
             'timeout': 0.0
@@ -262,7 +268,7 @@ class Player:
         # probably just use the /api/ routes?
         self.bot_client = extras.get('bot_client', False)
         if self.bot_client:
-            self.enqueue = lambda data: None # type: ignore
+            self.enqueue = lambda data: None  # type: ignore
 
         self.tourney_client = extras.get('tourney_client', False)
 
@@ -384,7 +390,7 @@ class Player:
         self.token = ''
 
         if 'online' in self.__dict__:
-            del self.online # wipe cached_property
+            del self.online  # wipe cached_property
 
         # leave multiplayer.
         if self.match:
@@ -414,58 +420,54 @@ class Player:
         """Update `self`'s privileges to `new`."""
         self.priv = new
 
-        await glob.db.execute(
-            'UPDATE users '
-            'SET priv = %s '
-            'WHERE id = %s',
-            [self.priv, self.id]
+        glob.db.users.update_one(
+            {'_id': self.id},
+            {'$set': {'priv': self.priv}}
         )
 
         if 'bancho_priv' in self.__dict__:
-            del self.bancho_priv # wipe cached_property
+            del self.bancho_priv  # wipe cached_property
 
     async def add_privs(self, bits: Privileges) -> None:
         """Update `self`'s privileges, adding `bits`."""
         self.priv |= bits
 
-        await glob.db.execute(
-            'UPDATE users '
-            'SET priv = %s '
-            'WHERE id = %s',
-            [self.priv, self.id]
+        glob.db.users.update_one(
+            {'_id': self.id},
+            {'$set': {'priv': self.priv}}
         )
 
         if 'bancho_priv' in self.__dict__:
-            del self.bancho_priv # wipe cached_property
+            del self.bancho_priv
 
     async def remove_privs(self, bits: Privileges) -> None:
         """Update `self`'s privileges, removing `bits`."""
         self.priv &= ~bits
 
-        await glob.db.execute(
-            'UPDATE users '
-            'SET priv = %s '
-            'WHERE id = %s',
-            [self.priv, self.id]
+        glob.db.users.update_one(
+            {'_id': self.id},
+            {'$set': {'priv': self.priv}}
         )
 
         if 'bancho_priv' in self.__dict__:
-            del self.bancho_priv # wipe cached_property
+            del self.bancho_priv
 
     async def restrict(self, admin: 'Player', reason: str) -> None:
         """Restrict `self` for `reason`, and log to sql."""
         await self.remove_privs(Privileges.Normal)
 
         log_msg = f'{admin} restricted for "{reason}".'
-        await glob.db.execute(
-            'INSERT INTO logs '
-            '(`from`, `to`, `msg`, `time`) '
-            'VALUES (%s, %s, %s, NOW())',
-            [admin.id, self.id, log_msg]
+        glob.db.logs.insert_one(
+            {
+                'from': admin.id,
+                'to': self.id,
+                'msg': log_msg,
+                'time': datetime.now()
+            }
         )
 
         if 'restricted' in self.__dict__:
-            del self.restricted # wipe cached_property
+            del self.restricted  # wipe cached_property
 
         log_msg = f'{admin} restricted {self} for: {reason}.'
 
@@ -486,15 +488,17 @@ class Player:
         await self.add_privs(Privileges.Normal)
 
         log_msg = f'{admin} unrestricted for "{reason}".'
-        await glob.db.execute(
-            'INSERT INTO logs '
-            '(`from`, `to`, `msg`, `time`) '
-            'VALUES (%s, %s, %s, NOW())',
-            [admin.id, self.id, log_msg]
+        glob.db.logs.insert_one(
+            {
+                'from': admin.id,
+                'to': self.id,
+                'msg': log_msg,
+                'time': datetime.now()
+            }
         )
 
         if 'restricted' in self.__dict__:
-            del self.restricted # wipe cached_property
+            del self.restricted
 
         log_msg = f'{admin} unrestricted {self} for: {reason}.'
 
@@ -515,17 +519,14 @@ class Player:
         """Silence `self` for `duration` seconds, and log to sql."""
         self.silence_end = int(time.time() + duration)
 
-        await glob.db.execute(
-            'UPDATE users SET silence_end = %s WHERE id = %s',
-            [self.silence_end, self.id]
-        )
-
         log_msg = f'{admin} silenced ({duration}s) for "{reason}".'
-        await glob.db.execute(
-            'INSERT INTO logs '
-            '(`from`, `to`, `msg`, `time`) '
-            'VALUES (%s, %s, %s, NOW())',
-            [admin.id, self.id, log_msg]
+        glob.db.logs.insert_one(
+            {
+                'from': admin.id,
+                'to': self.id,
+                'msg': log_msg,
+                'time': datetime.now()
+            }
         )
 
         # inform the user's client.
@@ -544,20 +545,22 @@ class Player:
         """Unsilence `self`, and log to sql."""
         self.silence_end = int(time.time())
 
-        await glob.db.execute(
-            'UPDATE users SET silence_end = %s WHERE id = %s',
-            [self.silence_end, self.id]
+        # convert to mongodb
+        glob.db.users.update_one(
+            {'_id': self.id},
+            {'$set': {'silence_end': self.silence_end}}
         )
 
         log_msg = f'{admin} unsilenced.'
-        await glob.db.execute(
-            'INSERT INTO logs '
-            '(`from`, `to`, `msg`, `time`) '
-            'VALUES (%s, %s, %s, NOW())',
-            [admin.id, self.id, log_msg]
+        glob.db.logs.insert_one(
+            {
+                'from': admin.id,
+                'to': self.id,
+                'msg': log_msg,
+                'time': datetime.now()
+            }
         )
 
-        # inform the user's client
         self.enqueue(packets.silenceEnd(0))
 
         log(f'Unsilenced {self}.', Ansi.LCYAN)
@@ -671,7 +674,8 @@ class Player:
 
             if self in self.match._refs:
                 self.match._refs.remove(self)
-                self.match.chat.send_bot(f'{self.name} removed from match referees.')
+                self.match.chat.send_bot(
+                    f'{self.name} removed from match referees.')
 
             # notify others of our deprature
             self.match.enqueue_state()
@@ -683,7 +687,7 @@ class Player:
         if self.id in c.members:
             return False
 
-        if not 'invited': # TODO
+        if not 'invited':  # TODO
             return False
 
         await c.add_member(self)
@@ -699,14 +703,14 @@ class Player:
     def join_channel(self, c: Channel) -> bool:
         """Attempt to add `self` to `c`."""
         if (
-            self in c or # player already in channel
-            not c.can_read(self.priv) or # no read privs
-            c._name == '#lobby' and not self.in_lobby # not in mp lobby
+            self in c or  # player already in channel
+            not c.can_read(self.priv) or  # no read privs
+            c._name == '#lobby' and not self.in_lobby  # not in mp lobby
         ):
             return False
 
-        c.append(self) # add to c.players
-        self.channels.append(c) # add to p.channels
+        c.append(self)  # add to c.players
+        self.channels.append(c)  # add to p.channels
 
         self.enqueue(packets.channelJoin(c.name))
 
@@ -737,8 +741,8 @@ class Player:
         if self not in c:
             return
 
-        c.remove(self) # remove from c.players
-        self.channels.remove(c) # remove from p.channels
+        c.remove(self)  # remove from c.players
+        self.channels.remove(c)  # remove from p.channels
 
         if kick:
             self.enqueue(packets.channelKick(c.name))
@@ -769,10 +773,10 @@ class Player:
         if not (spec_chan := glob.channels[chan_name]):
             # spectator chan doesn't exist, create it.
             spec_chan = Channel(
-                name = chan_name,
-                topic = f"{self.name}'s spectator channel.'",
-                auto_join = False,
-                instance = True
+                name=chan_name,
+                topic=f"{self.name}'s spectator channel.'",
+                auto_join=False,
+                instance=True
             )
 
             self.join_channel(spec_chan)
@@ -832,13 +836,14 @@ class Player:
             return
 
         self.friends.add(p.id)
-        await glob.db.execute(
-            "REPLACE INTO relationships "
-            "VALUES (%s, %s, 'friend')",
-            [self.id, p.id]
+
+        # convert to mongodb
+        await self.db.user.update_one(
+            {'_id': self.id},
+            {'$addToSet': {'friends': p.id}}
         )
 
-        log(f'{self} friended {p}.')
+        log(f'{self} added {p} as a friend.')
 
     async def remove_friend(self, p: 'Player') -> None:
         """Attempt to remove `p` from `self`'s friends."""
@@ -847,13 +852,12 @@ class Player:
             return
 
         self.friends.remove(p.id)
-        await glob.db.execute(
-            'DELETE FROM relationships '
-            'WHERE user1 = %s AND user2 = %s',
-            [self.id, p.id]
+        glob.db.user.update_one(
+            {'_id': self.id},
+            {'$pull': {'friends': p.id}}
         )
 
-        log(f'{self} unfriended {p}.')
+        log(f'{self} removed {p} as a friend.')
 
     async def add_block(self, p: 'Player') -> None:
         """Attempt to add `p` to `self`'s blocks."""
@@ -862,10 +866,9 @@ class Player:
             return
 
         self.blocks.add(p.id)
-        await glob.db.execute(
-            "REPLACE INTO relationships "
-            "VALUES (%s, %s, 'block')",
-            [self.id, p.id]
+        glob.db.user.update_one(
+            {'_id': self.id},
+            {'$addToSet': {'blocks': p.id}}
         )
 
         log(f'{self} blocked {p}.')
@@ -877,94 +880,23 @@ class Player:
             return
 
         self.blocks.remove(p.id)
-        await glob.db.execute(
-            'DELETE FROM relationships '
-            'WHERE user1 = %s AND user2 = %s',
-            [self.id, p.id]
+        glob.db.user.update_one(
+            {'_id': self.id},
+            {'$pull': {'blocks': p.id}}
         )
 
         log(f'{self} unblocked {p}.')
 
     async def unlock_achievement(self, a: 'Achievement') -> None:
         """Unlock `ach` for `self`, storing in both cache & sql."""
-        await glob.db.execute(
-            'INSERT INTO user_achievements '
-            '(userid, achid) '
-            'VALUES (%s, %s)',
-            [self.id, a.id]
+        glob.db.user.update_one(
+            {'_id': self.id},
+            {'$addToSet': {'achievements': a.id}}
         )
 
-        self.achievements.add(a)
+        self.achievements.add(a.id)
 
-    async def relationships_from_sql(self, db_cursor: aiomysql.DictCursor) -> None:
-        """Retrieve `self`'s relationships from sql."""
-        await db_cursor.execute(
-            'SELECT user2, type '
-            'FROM relationships '
-            'WHERE user1 = %s',
-            [self.id]
-        )
-
-        async for row in db_cursor:
-            if row['type'] == 'friend':
-                self.friends.add(row['user2'])
-            else:
-                self.blocks.add(row['user2'])
-
-        # always have bot added to friends.
-        self.friends.add(1)
-
-    async def achievements_from_sql(self, db_cursor: aiomysql.DictCursor) -> None:
-        """Retrieve `self`'s achievements from sql."""
-        await db_cursor.execute(
-            'SELECT ua.achid id FROM user_achievements ua '
-            'INNER JOIN achievements a ON a.id = ua.achid '
-            'WHERE ua.userid = %s',
-            [self.id]
-        )
-
-        async for row in db_cursor:
-            for ach in glob.achievements:
-                if row['id'] == ach.id:
-                    self.achievements.add(ach)
-
-    async def stats_from_sql_full(self, db_cursor: aiomysql.DictCursor) -> None:
-        """Retrieve `self`'s stats (all modes) from sql."""
-        await db_cursor.execute(
-            'SELECT tscore, rscore, pp, acc, '
-            'plays, playtime, max_combo, '
-            'xh_count, x_count, sh_count, s_count, a_count '
-            'FROM stats '
-            'WHERE id = %s',
-            [self.id]
-        )
-
-        for mode, row in enumerate(await db_cursor.fetchall()):
-            # calculate player's rank.
-            # TODO: do rankings with bisection algorithms
-            # locally, pulling from the database @ startup.
-            await db_cursor.execute(
-                'SELECT COUNT(*) AS higher_pp_players '
-                'FROM stats s '
-                'INNER JOIN users u USING(id) '
-                'WHERE s.mode = %s '
-                'AND s.pp > %s '
-                'AND u.priv & 1 '
-                'AND u.id != %s',
-                [mode, row['pp'], self.id]
-            )
-
-            row['rank'] = (await db_cursor.fetchone())['higher_pp_players'] + 1
-
-            row['grades'] = {
-                Grade.XH: row.pop('xh_count'),
-                Grade.X: row.pop('x_count'),
-                Grade.SH: row.pop('sh_count'),
-                Grade.S: row.pop('s_count'),
-                Grade.A: row.pop('a_count')
-            }
-
-            self.stats[GameMode(mode)] = ModeData(**row)
+        log(f'{self} unlocked {a}.')
 
     def send_menu_clear(self) -> None:
         """Clear the user's osu! chat with the bot
@@ -994,12 +926,11 @@ class Player:
 
     def update_latest_activity(self) -> None:
         """Update the player's latest activity in the database."""
-        task = glob.db.execute(
-            'UPDATE users '
-            'SET latest_activity = UNIX_TIMESTAMP() '
-            'WHERE id = %s',
-            [self.id]
+        task = glob.db.user.update_one(
+            {'_id': self.id},
+            {'$set': {'latest_activity': datetime.utcnow()}}
         )
+
         glob.loop.create_task(task)
 
     def enqueue(self, data: bytes) -> None:
@@ -1018,10 +949,10 @@ class Player:
         """Enqueue `sender`'s `msg` to `self`. Sent in `chan`, or dm."""
         self.enqueue(
             packets.sendMessage(
-                sender = sender.name,
-                msg = msg,
-                recipient = (chan or self).name,
-                sender_id = sender.id
+                sender=sender.name,
+                msg=msg,
+                recipient=(chan or self).name,
+                sender_id=sender.id
             )
         )
 
@@ -1031,9 +962,9 @@ class Player:
 
         self.enqueue(
             packets.sendMessage(
-                sender = bot.name,
-                msg = msg,
-                recipient = self.name,
-                sender_id = bot.id
+                sender=bot.name,
+                msg=msg,
+                recipient=self.name,
+                sender_id=bot.id
             )
         )

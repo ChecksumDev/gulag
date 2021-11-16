@@ -18,15 +18,16 @@ import socket
 from datetime import datetime
 from pathlib import Path
 
-import aiomysql
+
 import cmyui
-from cmyui.logging import log
-from cmyui.logging import RGB
+from cmyui.logging import RGB, log
+from pymongo import MongoClient
 
 import bg_loops
 import misc.context
 import misc.utils
 import objects.collections
+from objects import glob  # (includes config)
 
 # set the current working directory to /gulag
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -35,12 +36,12 @@ if not os.path.exists('config.py'):
     misc.utils.create_config_from_default()
     raise SystemExit(1)
 
-from objects import glob # (includes config)
 
 # !! review code that uses this before modifying it.
 glob.version = cmyui.Version(3, 5, 4)
 
 GEOLOC_DB_FILE = Path.cwd() / 'ext/GeoLite2-City.mmdb'
+
 
 async def run_server() -> None:
     """Begin listening for and handling connections on all endpoints."""
@@ -59,10 +60,10 @@ async def run_server() -> None:
 
     # fetch our server's endpoints; gulag supports
     # osu!'s handlers across multiple domains.
-    from domains.cho import domain as c_ppy_sh # /c[e4-6]?.ppy.sh/
-    from domains.osu import domain as osu_ppy_sh
     from domains.ava import domain as a_ppy_sh
+    from domains.cho import domain as c_ppy_sh  # /c[e4-6]?.ppy.sh/
     from domains.map import domain as b_ppy_sh
+    from domains.osu import domain as osu_ppy_sh
     glob.app.add_domains({c_ppy_sh, osu_ppy_sh,
                           a_ppy_sh, b_ppy_sh})
 
@@ -81,7 +82,7 @@ async def run_server() -> None:
 
     # create our transport layer socket; osu! uses tcp/ip
     with socket.socket(sock_family, socket.SOCK_STREAM) as listening_sock:
-        listening_sock.setblocking(False) # asynchronous
+        listening_sock.setblocking(False)  # asynchronous
         listening_sock.bind(glob.config.server_addr)
 
         if sock_family == socket.AF_UNIX:
@@ -114,16 +115,18 @@ async def run_server() -> None:
         # using unix socket - remove from filesystem
         os.remove(glob.config.server_addr)
 
+
 async def main() -> int:
     """Initialize, and start up the server."""
     glob.loop = asyncio.get_running_loop()
 
     async with (
         misc.context.acquire_http_session(glob.has_internet) as glob.http_session,
-        misc.context.acquire_mysql_db_pool(glob.config.mysql) as glob.db
     ):
+        mongo = MongoClient(f'mongodb+srv://{glob.config.mongo["user"]}:{glob.config.mongo["password"]}@{glob.config.mongo["host"]}/{glob.config.mongo["db"]}?retryWrites=true&w=majority')
+        glob.db = mongo[glob.config.mongo['db']]
+        
         await misc.utils.check_for_dependency_updates()
-        await misc.utils.update_mysql_structure()
 
         with (
             misc.context.acquire_geoloc_db_conn(GEOLOC_DB_FILE) as glob.geoloc_db,
@@ -136,12 +139,6 @@ async def main() -> int:
                 gzip=4, debug=glob.config.debug
             )
 
-            # prepare our ram caches, populating from sql where necessary.
-            # this includes channels, clans, mappools, bot info, etc.
-            async with glob.db.pool.acquire() as conn:
-                async with conn.cursor(aiomysql.DictCursor) as db_cursor:
-                    await objects.collections.initialize_ram_caches(db_cursor)
-
             # initialize housekeeping tasks to automatically manage
             # and ensure memory on ram & disk are kept up to date.
             await bg_loops.initialize_housekeeping_tasks()
@@ -153,7 +150,7 @@ async def main() -> int:
 
             # TODO: restart signal handler with SIGUSR1
 
-            # run the server, handling connections
+            # run the server, handling connectionp
             # until a termination signal is received.
             await run_server()
 
@@ -172,10 +169,9 @@ if __name__ == '__main__':
     misc.utils.setup_runtime_environment()
 
     for safety_check in (
-        misc.utils.ensure_supported_platform, # linux only at the moment
-        misc.utils.ensure_local_services_are_running, # mysql (if local)
-        misc.utils.ensure_directory_structure, # .data/ & achievements/ dir structure
-        misc.utils.ensure_dependencies_and_requirements # submodules & oppai-ng built
+        misc.utils.ensure_supported_platform,  # linux only at the moment
+        misc.utils.ensure_directory_structure,  # .data/ & achievements/ dir structure
+        misc.utils.ensure_dependencies_and_requirements  # submodules & oppai-ng built
     ):
         if (exit_code := safety_check()) != 0:
             raise SystemExit(exit_code)

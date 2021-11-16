@@ -9,7 +9,7 @@ from typing import overload
 from typing import Sequence
 from typing import Union
 
-import aiomysql
+
 from cmyui.logging import Ansi
 from cmyui.logging import log
 
@@ -37,6 +37,7 @@ __all__ = (
 # TODO: decorator for these collections which automatically
 # adds debugging to their append/remove/insert/extend methods.
 
+
 class Channels(list[Channel]):
     """The currently active chat channels on the server."""
 
@@ -57,11 +58,12 @@ class Channels(list[Channel]):
     def __getitem__(self, index: str) -> Channel: ...
     @overload
     def __getitem__(self, index: slice) -> list[Channel]: ...
+
     def __getitem__(self, index: Union[int, slice, str]) -> Union[Channel, list[Channel]]:
         # XXX: can be either a string (to get by name),
         # or a slice, for indexing the internal array.
         if isinstance(index, str):
-            return self.get_by_name(index) # type: ignore
+            return self.get_by_name(index)  # type: ignore
         else:
             return super().__getitem__(index)
 
@@ -92,19 +94,20 @@ class Channels(list[Channel]):
             log(f'{c} removed from channels list.')
 
     @classmethod
-    async def prepare(cls, db_cursor: aiomysql.DictCursor) -> 'Channels':
+    async def prepare(cls) -> 'Channels':
         """Fetch data from sql & return; preparing to run the server."""
         log('Fetching channels from sql.', Ansi.LCYAN)
-        await db_cursor.execute('SELECT * FROM channels')
+        channels = glob.db.channels.find({})
         return cls([
             Channel(
-                name = row['name'],
-                topic = row['topic'],
-                read_priv = Privileges(row['read_priv']),
-                write_priv = Privileges(row['write_priv']),
-                auto_join = row['auto_join'] == 1
-            ) async for row in db_cursor
+                name=row['name'],
+                topic=row['topic'],
+                read_priv=Privileges(row['read_priv']),
+                write_priv=Privileges(row['write_priv']),
+                auto_join=row['auto_join'] == 1
+            ) async for row in channels
         ])
+
 
 class Matches(list[Match]):
     """The currently active multiplayer matches on the server."""
@@ -148,6 +151,7 @@ class Matches(list[Match]):
 
         if glob.app.debug:
             log(f'{m} removed from matches list.')
+
 
 class Players(list[Player]):
     """The currently active players on the server."""
@@ -223,7 +227,7 @@ class Players(list[Player]):
         attr, val = self._parse_attr(kwargs)
 
         # try to get from sql.
-        res = await glob.db.fetch(
+        res = glob.db.fetch(
             'SELECT id, name, priv, pw_bcrypt, '
             'silence_end, clan_id, clan_priv, api_key '
             f'FROM users WHERE {attr} = %s',
@@ -255,7 +259,7 @@ class Players(list[Player]):
                         sql: bool = False) -> Optional[Player]:
         """Return a player with a given name & pw_md5, from cache or sql."""
         if not (p := self.get(name=name)):
-            if not sql: # not to fetch from sql.
+            if not sql:  # not to fetch from sql.
                 return
 
             if not (p := await self.get_sql(name=name)):
@@ -283,6 +287,7 @@ class Players(list[Player]):
 
         super().remove(p)
 
+
 class MapPools(list[MapPool]):
     """The currently active mappools on the server."""
 
@@ -295,10 +300,11 @@ class MapPools(list[MapPool]):
     def __getitem__(self, index: str) -> MapPool: ...
     @overload
     def __getitem__(self, index: slice) -> list[MapPool]: ...
+
     def __getitem__(self, index: Union[int, slice, str]) -> Union[MapPool, list[MapPool]]:
         """Allow slicing by either a string (for name), or slice."""
         if isinstance(index, str):
-            return self.get_by_name(index) # type: ignore
+            return self.get_by_name(index)  # type: ignore
         else:
             return super().__getitem__(index)
 
@@ -331,16 +337,16 @@ class MapPools(list[MapPool]):
             log(f'{mp} removed from mappools list.')
 
     @classmethod
-    async def prepare(cls, db_cursor: aiomysql.DictCursor) -> 'MapPools':
+    async def prepare(cls) -> 'MapPools':
         """Fetch data from sql & return; preparing to run the server."""
         log('Fetching mappools from sql.', Ansi.LCYAN)
         await db_cursor.execute('SELECT * FROM tourney_pools')
         obj = cls([
             MapPool(
-                id = row['id'],
-                name = row['name'],
-                created_at = row['created_at'],
-                created_by = await glob.players.get_ensure(id=row['created_by'])
+                id=row['id'],
+                name=row['name'],
+                created_at=row['created_at'],
+                created_by=await glob.players.get_ensure(id=row['created_by'])
             ) async for row in db_cursor
         ])
 
@@ -348,6 +354,7 @@ class MapPools(list[MapPool]):
             await pool.maps_from_sql(db_cursor)
 
         return obj
+
 
 class Clans(list[Clan]):
     """The currently active clans on the server."""
@@ -361,6 +368,7 @@ class Clans(list[Clan]):
     def __getitem__(self, index: str) -> Clan: ...
     @overload
     def __getitem__(self, index: slice) -> list[Clan]: ...
+
     def __getitem__(self, index: Union[int, slice, str]) -> Union[Clan, list[Clan]]:
         """Allow slicing by either a string (for name), or slice."""
         if isinstance(index, str):
@@ -403,7 +411,7 @@ class Clans(list[Clan]):
             log(f'{c} removed from clans list.')
 
     @classmethod
-    async def prepare(cls, db_cursor: aiomysql.DictCursor) -> 'Clans':
+    async def prepare(cls) -> 'Clans':
         """Fetch data from sql & return; preparing to run the server."""
         log('Fetching clans from sql.', Ansi.LCYAN)
         await db_cursor.execute('SELECT * FROM clans')
@@ -414,7 +422,8 @@ class Clans(list[Clan]):
 
         return obj
 
-async def initialize_ram_caches(db_cursor: aiomysql.DictCursor) -> None:
+
+async def initialize_ram_caches() -> None:
     """Setup & cache the global collections before listening for connections."""
     # dynamic (active) sets, only in ram
     glob.matches = Matches()
@@ -428,7 +437,7 @@ async def initialize_ram_caches(db_cursor: aiomysql.DictCursor) -> None:
     bot_name = await misc.utils.fetch_bot_name(db_cursor)
 
     # create bot & add it to online players
-    glob.bot = Player(id=1, name=bot_name, login_time=float(0x7fffffff), # (never auto-dc)
+    glob.bot = Player(id=1, name=bot_name, login_time=float(0x7fffffff),  # (never auto-dc)
                       priv=Privileges.Normal, bot_client=True)
     glob.players.append(glob.bot)
 

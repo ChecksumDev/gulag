@@ -15,28 +15,14 @@ import types
 import warnings
 import zipfile
 from pathlib import Path
-from typing import Any
-from typing import AsyncGenerator
-from typing import Callable
-from typing import Optional
-from typing import Sequence
-from typing import Type
-from typing import TypedDict
-from typing import TypeVar
-from typing import Union
+from typing import (Any, AsyncGenerator, Callable, Optional, Sequence, Type,
+                    TypedDict, TypeVar, Union)
 
-import aiomysql
 import cmyui
 import dill as pickle
-import pymysql
 import requests
-from cmyui.logging import Ansi
-from cmyui.logging import log
-from cmyui.logging import printc
-from cmyui.logging import Rainbow
-from cmyui.osu.replay import Keys
-from cmyui.osu.replay import ReplayFrame
-
+from cmyui.logging import Ansi, Rainbow, log, printc
+from cmyui.osu.replay import Keys, ReplayFrame
 from constants.countries import country_codes
 from objects import glob
 
@@ -57,10 +43,6 @@ __all__ = (
     'Geolocation',
     'fetch_geoloc_db',
     'fetch_geoloc_web',
-
-    'pymysql_encode',
-    'escape_enum',
-
     'shutdown_signal_handler',
     '_handle_fut_exception',
     '_conn_finished_cb',
@@ -81,8 +63,6 @@ __all__ = (
 
     '_get_latest_dependency_versions',
     'check_for_dependency_updates',
-    '_get_current_mysql_structure_version',
-    'update_mysql_structure',
 )
 
 DATA_PATH = Path.cwd() / '.data'
@@ -130,20 +110,14 @@ def make_safe_name(name: str) -> str:
     """Return a name safe for usage in sql."""
     return name.lower().replace(' ', '_')
 
-async def fetch_bot_name(db_cursor: aiomysql.DictCursor) -> str:
+async def fetch_bot_name() -> str:
     """Fetch the bot's name from the database, if available."""
-    await db_cursor.execute(
-        'SELECT name '
-        'FROM users '
-        'WHERE id = 1'
-    )
+    bot = glob.db.users.find_one({'_id': glob.config['bot_id']})
 
-    if db_cursor.rowcount == 0:
-        log("Couldn't find bot account in the database, "
-            "defaulting to BanchoBot for their name.", Ansi.LYELLOW)
-        return 'BanchoBot'
+    if bot is None:
+        return 'Axioma'
 
-    return (await db_cursor.fetchone())['name']
+    return bot['username']
 
 def _download_achievement_images_mirror(achievements_path: Path) -> bool:
     """Download all used achievement images (using mirror's zip)."""
@@ -400,15 +374,6 @@ async def fetch_geoloc_web(ip: IPAddress) -> Optional[Geolocation]:
 
 T = TypeVar('T')
 
-def pymysql_encode(
-    conv: Callable[[Any, Optional[dict[object, object]]], str]
-) -> Callable[[T], T]:
-    """Decorator to allow for adding to pymysql's encoders."""
-    def wrapper(cls: T) -> T:
-        pymysql.converters.encoders[cls] = conv
-        return cls
-    return wrapper
-
 def escape_enum(val: Any, _: Optional[dict[object, object]] = None) -> str: # used for ^
     return str(int(val))
 
@@ -515,27 +480,6 @@ def ensure_supported_platform() -> int:
 
     return 0
 
-def ensure_local_services_are_running() -> int:
-    """Ensure all required services (mysql) are running."""
-    # NOTE: if you have any problems with this, please contact me
-    # @cmyui#0425/cmyuiosu@gmail.com. i'm interested in knowing
-    # how people are using the software so that i can keep it
-    # in mind while developing new features & refactoring.
-
-    if glob.config.mysql['host'] in ('localhost', '127.0.0.1', None):
-        # sql server running locally, make sure it's running
-        for service in ('mysqld', 'mariadb'):
-            if os.path.exists(f'/var/run/{service}/{service}.pid'):
-                break
-        else:
-            # not found, try pgrep
-            pgrep_exit_code = os.system('pgrep mysqld')
-            if pgrep_exit_code != 0:
-                log('Please start your mysqld server.', Ansi.LRED)
-                return 1
-
-    return 0
-
 def ensure_directory_structure() -> int:
     """Ensure the .data directory and git submodules are ready."""
     # create /.data and its subdirectories.
@@ -596,7 +540,7 @@ def setup_runtime_environment() -> None:
 def _install_debugging_hooks() -> None:
     """Change internals to help with debugging & active development."""
     if DEBUG_HOOKS_PATH.exists():
-        from _testing import runtime # type: ignore
+        from _testing import runtime  # type: ignore
         runtime.setup()
 
 def display_startup_dialog() -> None:
@@ -671,90 +615,3 @@ async def check_for_dependency_updates() -> None:
     if updates_available:
         log('Python modules can be updated with '
             '`python3.9 -m pip install -U <modules>`.', Ansi.LMAGENTA)
-
-async def _get_current_mysql_structure_version() -> Optional[cmyui.Version]:
-    """Get the last launched version of the server."""
-    res = await glob.db.fetch(
-        'SELECT ver_major, ver_minor, ver_micro '
-        'FROM startups ORDER BY datetime DESC LIMIT 1',
-        _dict=False # get tuple
-    )
-
-    if res:
-        return cmyui.Version(*map(int, res))
-
-async def update_mysql_structure() -> None:
-    """Update the mysql structure, if it has changed."""
-    current_ver = await _get_current_mysql_structure_version()
-    latest_ver = glob.version
-
-    if latest_ver == current_ver:
-        return # already up to date
-
-    # version changed; there may be sql changes.
-    content = SQL_UPDATES_FILE.read_text()
-
-    queries = []
-    q_lines = []
-
-    update_ver = None
-
-    for line in content.splitlines():
-        if not line:
-            continue
-
-        if line.startswith('#'):
-            # may be normal comment or new version
-            if r_match := VERSION_RGX.fullmatch(line):
-                update_ver = cmyui.Version.from_str(r_match['ver'])
-
-            continue
-        elif not update_ver:
-            continue
-
-        # we only need the updates between the
-        # previous and new version of the server.
-        if current_ver < update_ver <= latest_ver:
-            if line.endswith(';'):
-                if q_lines:
-                    q_lines.append(line)
-                    queries.append(' '.join(q_lines))
-                    q_lines = []
-                else:
-                    queries.append(line)
-            else:
-                q_lines.append(line)
-
-    if not queries:
-        return
-
-    log('Updating mysql structure '
-        f'(v{current_ver!r} -> v{latest_ver!r}).', Ansi.LMAGENTA)
-
-    updated = False
-
-    # NOTE: this using a transaction is pretty pointless with mysql since
-    # any structural changes to tables will implciticly commit the changes.
-    # https://dev.mysql.com/doc/refman/5.7/en/implicit-commit.html
-    async with glob.db.pool.acquire() as conn:
-        async with conn.cursor() as db_cursor:
-            await conn.begin()
-            for query in queries:
-                try:
-                    await db_cursor.execute(query)
-                except aiomysql.MySQLError:
-                    await conn.rollback()
-                    break
-            else:
-                # all queries ran
-                # without problems.
-                await conn.commit()
-                updated = True
-
-    if not updated:
-        log(f'Failed: {query}', Ansi.GRAY)
-        log("SQL failed to update - unless you've been "
-            "modifying sql and know what caused this, "
-            "please please contact cmyui#0425.", Ansi.LRED)
-
-        raise KeyboardInterrupt

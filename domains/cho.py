@@ -12,7 +12,7 @@ from typing import Optional
 from typing import Type
 from typing import Union
 
-import aiomysql
+
 import bcrypt
 from cmyui.logging import Ansi
 from cmyui.logging import log
@@ -111,9 +111,7 @@ async def bancho_handler(conn: Connection) -> HTTPResponse:
         # login is a bit of a special case,
         # so we'll handle it separately.
         async with glob.players._lock:
-            async with glob.db.pool.acquire() as db_conn:
-                async with db_conn.cursor(aiomysql.DictCursor) as db_cursor:
-                    login_data = await login(conn.body, ip, db_cursor)
+            login_data = await login(conn.body, ip)
 
         if login_data is None:
             # invalid login; failed.
@@ -390,7 +388,6 @@ DELTA_90_DAYS = timedelta(days=90)
 async def login(
     body_view: memoryview,
     ip: IPAddress,
-    db_cursor: aiomysql.DictCursor
 ) -> Optional[tuple[bytes, str]]:
     """\
     Login has no specific packet, but happens when the osu!
@@ -504,14 +501,10 @@ async def login(
                            packets.notification('User already logged in.')
 
                     return data, 'no'
+    
+    #userid = _id not id
 
-    await db_cursor.execute(
-        'SELECT id, name, priv, pw_bcrypt, country, '
-        'silence_end, clan_id, clan_priv, api_key '
-        'FROM users WHERE safe_name = %s',
-        [misc.utils.make_safe_name(username)]
-    )
-    user_info = await db_cursor.fetchone()
+    user_info = glob.db.users.find_one({'name': username})
 
     if not user_info:
         # no account by this name exists.
@@ -693,12 +686,6 @@ async def login(
 
     # tells osu! to reorder channels based on config.
     data += packets.channelInfoEnd()
-
-    # fetch some of the player's
-    # information from sql to be cached.
-    await p.achievements_from_sql(db_cursor)
-    await p.stats_from_sql_full(db_cursor)
-    await p.relationships_from_sql(db_cursor)
 
     # TODO: fetch p.recent_scores from sql
 
@@ -956,7 +943,7 @@ class SendPrivateMessage(BasePacket):
                 ))
 
             # insert mail into db, marked as unread.
-            await glob.db.execute(
+            glob.db.execute(
                 'INSERT INTO `mail` '
                 '(`from_id`, `to_id`, `msg`, `time`) '
                 'VALUES (%s, %s, %s, UNIX_TIMESTAMP())',
