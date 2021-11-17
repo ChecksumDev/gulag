@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 # this is used externally, i.e. `glob.config.attr`
 import config  # type: ignore
+from pymongo.mongo_client import MongoClient
 
 # this file contains no actualy definitions
 if TYPE_CHECKING:
@@ -42,7 +43,7 @@ __all__ = (
     'players', 'channels', 'matches',
     'pools', 'clans', 'achievements',
     'version', 'bot', 'api_keys',
-    'bancho_packets', 'db',
+    'bancho_packets', 'mongo', 'db',
     'has_internet', 'shutting_down', 'boot_time',
     'http_session', 'datadog', 'cache', 'loop',
     'housekeeping_tasks', 'ongoing_conns',
@@ -70,6 +71,7 @@ api_keys: dict[str, int]  # {api_key: player_id}
 # list of registered packets
 bancho_packets: dict[str, 'dict[ClientPackets, Type[BasePacket]]']
 
+mongo: 'MongoClient'
 db: 'Database'
 
 has_internet: bool

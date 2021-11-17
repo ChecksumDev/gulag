@@ -2,20 +2,13 @@ import functools
 import hashlib
 from collections import defaultdict
 #from dataclasses import dataclass
-from datetime import datetime
-from datetime import timedelta
-from enum import IntEnum
-from enum import unique
+from datetime import datetime, timedelta
+from enum import IntEnum, unique
 from pathlib import Path
-from typing import Any
-from typing import Mapping
-from typing import Optional
-
-
-from cmyui.logging import Ansi
-from cmyui.logging import log
+from typing import Any, Mapping, Optional
 
 import misc.utils
+from cmyui.logging import Ansi, log
 from constants.gamemodes import GameMode
 
 from objects import glob
@@ -33,6 +26,7 @@ DEFAULT_LAST_UPDATE = datetime(1970, 1, 1)
 
 IGNORED_BEATMAP_CHARS = dict.fromkeys(map(ord, r':\/*<>?"|'), None)
 
+
 async def osuapiv1_getbeatmaps(**params) -> Optional[list[dict[str, Any]]]:
     """Fetch data from the osu!api with a beatmap's md5."""
     if glob.app.debug:
@@ -43,9 +37,10 @@ async def osuapiv1_getbeatmaps(**params) -> Optional[list[dict[str, Any]]]:
     async with glob.http_session.get(OSUAPI_GET_BEATMAPS, params=params) as resp:
         if (
             resp and resp.status == 200 and
-            resp.content.total_bytes != 2 # b'[]'
+            resp.content.total_bytes != 2  # b'[]'
         ):
             return await resp.json()
+
 
 async def ensure_local_osu_file(
     osu_file_path: Path,
@@ -77,6 +72,7 @@ async def ensure_local_osu_file(
 # represent different ranked statuses all throughout osu!
 # This drives me and probably everyone else pretty insane,
 # but we have nothing to do but deal with it B).
+
 
 @unique
 class RankedStatus(IntEnum):
@@ -122,8 +118,8 @@ class RankedStatus(IntEnum):
         """Convert from osu!api status."""
         mapping: Mapping[int, RankedStatus] = defaultdict(
             lambda: cls.UpdateAvailable, {
-                -2: cls.Pending, # graveyard
-                -1: cls.Pending, # wip
+                -2: cls.Pending,  # graveyard
+                -1: cls.Pending,  # wip
                 0:  cls.Pending,
                 1:  cls.Ranked,
                 2:  cls.Approved,
@@ -142,9 +138,9 @@ class RankedStatus(IntEnum):
                 0: cls.Ranked,
                 2: cls.Pending,
                 3: cls.Qualified,
-                #4: all ranked statuses lol
-                5: cls.Pending, # graveyard
-                7: cls.Ranked, # played before
+                # 4: all ranked statuses lol
+                5: cls.Pending,  # graveyard
+                7: cls.Ranked,  # played before
                 8: cls.Loved
             }
         )
@@ -153,7 +149,7 @@ class RankedStatus(IntEnum):
     @classmethod
     @functools.cache
     def from_str(cls, status_str: str) -> 'RankedStatus':
-        """Convert from string value.""" # could perhaps have `'unranked': cls.Pending`?
+        """Convert from string value."""  # could perhaps have `'unranked': cls.Pending`?
         mapping: Mapping[str, RankedStatus] = defaultdict(
             lambda: cls.UpdateAvailable, {
                 'pending': cls.Pending,
@@ -165,13 +161,13 @@ class RankedStatus(IntEnum):
         )
         return mapping[status_str]
 
-#@dataclass
-#class BeatmapInfoRequest:
+# @dataclass
+# class BeatmapInfoRequest:
 #    filenames: Sequence[str]
 #    ids: Sequence[int]
 
-#@dataclass
-#class BeatmapInfo:
+# @dataclass
+# class BeatmapInfo:
 #    id: int # i16
 #    map_id: int # i32
 #    set_id: int # i32
@@ -182,6 +178,7 @@ class RankedStatus(IntEnum):
 #    taiko_rank: int # u8
 #    mania_rank: int # u8
 #    map_md5: str
+
 
 class Beatmap:
     """A class representing an osu! beatmap.
@@ -245,7 +242,7 @@ class Beatmap:
 
         self.artist = kwargs.get('artist', '')
         self.title = kwargs.get('title', '')
-        self.version = kwargs.get('version', '') # diff name
+        self.version = kwargs.get('version', '')  # diff name
         self.creator = kwargs.get('creator', '')
 
         self.last_update = kwargs.get('last_update', DEFAULT_LAST_UPDATE)
@@ -268,7 +265,8 @@ class Beatmap:
         self.diff = kwargs.get('diff', 0.0)
 
         self.filename = kwargs.get('filename', '')
-        self.pp_cache = {0: {}, 1: {}, 2: {}, 3: {}} # {mode_vn: {mods: (acc/score: pp, ...), ...}}
+        # {mode_vn: {mods: (acc/score: pp, ...), ...}}
+        self.pp_cache = {0: {}, 1: {}, 2: {}, 3: {}}
 
     def __repr__(self) -> str:
         return self.full
@@ -303,7 +301,7 @@ class Beatmap:
         return self.status in (RankedStatus.Ranked,
                                RankedStatus.Approved)
 
-    @property # perhaps worth caching some of?
+    @property  # perhaps worth caching some of?
     def as_dict(self) -> dict[str, object]:
         return {
             'md5': self.md5,
@@ -511,6 +509,7 @@ class Beatmap:
 
             return bmap
 
+
 class BeatmapSet:
     """A class to represent an osu! beatmap set.
 
@@ -544,7 +543,8 @@ class BeatmapSet:
     def __init__(self, **kwargs) -> None:
         self.id = kwargs.get('id', 0)
 
-        self.last_osuapi_check: Optional[datetime] = kwargs.get('last_osuapi_check', None)
+        self.last_osuapi_check: Optional[datetime] = kwargs.get(
+            'last_osuapi_check', None)
         self.maps: list[Beatmap] = kwargs.get('maps', [])
 
     @functools.lru_cache(maxsize=256)
@@ -557,7 +557,7 @@ class BeatmapSet:
         return ', '.join(map_names)
 
     @property
-    def url(self) -> str: # same as above, just no beatmap id
+    def url(self) -> str:  # same as above, just no beatmap id
         """The online url for this beatmap set."""
         return f'https://osu.{BASE_DOMAIN}/beatmapsets/{self.id}'
 
@@ -569,7 +569,7 @@ class BeatmapSet:
             if (
                 bmap.status not in (RankedStatus.Ranked,
                                     RankedStatus.Approved) or
-                bmap.frozen # ranked/approved, but only on gulag
+                bmap.frozen  # ranked/approved, but only on gulag
             ):
                 return False
         return True
@@ -581,7 +581,7 @@ class BeatmapSet:
         for bmap in self.maps:
             if (
                 bmap.status != RankedStatus.Loved or
-                bmap.frozen # loved, but only on gulag
+                bmap.frozen  # loved, but only on gulag
             ):
                 return False
         return True
@@ -662,19 +662,19 @@ class BeatmapSet:
 
                 await db_cursor.executemany(
                     'REPLACE INTO maps ('
-                        'server, md5, id, set_id, '
-                        'artist, title, version, creator, '
-                        'filename, last_update, total_length, '
-                        'max_combo, status, frozen, '
-                        'plays, passes, mode, bpm, '
-                        'cs, od, ar, hp, diff'
+                    'server, md5, id, set_id, '
+                    'artist, title, version, creator, '
+                    'filename, last_update, total_length, '
+                    'max_combo, status, frozen, '
+                    'plays, passes, mode, bpm, '
+                    'cs, od, ar, hp, diff'
                     ') VALUES ('
-                        '"osu!", %s, %s, %s, '
-                        '%s, %s, %s, %s, '
-                        '%s, %s, %s, '
-                        '%s, %s, %s, '
-                        '%s, %s, %s, %s, '
-                        '%s, %s, %s, %s, %s'
+                    '"osu!", %s, %s, %s, '
+                    '%s, %s, %s, %s, '
+                    '%s, %s, %s, '
+                    '%s, %s, %s, '
+                    '%s, %s, %s, %s, '
+                    '%s, %s, %s, %s, %s'
                     ')', [(
                         bmap.md5, bmap.id, bmap.set_id,
                         bmap.artist, bmap.title, bmap.version, bmap.creator,

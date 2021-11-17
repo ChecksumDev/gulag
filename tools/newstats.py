@@ -11,6 +11,7 @@ from cmyui.mysql import AsyncSQLPool
 TABLE_COLUMNS = ['tscore', 'rscore', 'pp', 'plays',
                  'playtime', 'acc', 'max_combo']
 
+
 async def main():
     pool = AsyncSQLPool()
     await pool.connect({
@@ -64,7 +65,7 @@ async def main():
                         await insert_cursor.execute(
                             'INSERT INTO stats '
                             'VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, '
-                                    '0, 0, 0, 0, 0)', # grades (new stuff)
+                            '0, 0, 0, 0, 0)',  # grades (new stuff)
                             [row['id'], mode_num, *row_values]
                         )
 

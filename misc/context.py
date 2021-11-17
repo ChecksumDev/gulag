@@ -1,16 +1,13 @@
-from contextlib import asynccontextmanager
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
-from typing import Any
-from typing import AsyncIterator
-from typing import Iterator
-from typing import Optional
+from typing import Any, AsyncIterator, Iterator, Optional
 
 import aiohttp
-import cmyui
 import datadog
 import geoip2.database
 import orjson
+from cmyui.logging import log
+from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
 
 
@@ -27,13 +24,13 @@ async def acquire_http_session(has_internet: bool) -> AsyncIterator[Optional[aio
             await http_sess.close()
 
 
-@asynccontextmanager
-async def acquire_mongo_db(args: str, config: dict) -> Iterator[Optional[MongoClient]]:
-    mongo_client = MongoClient(args).get_database(config["db"])
+@contextmanager
+def acquire_mongodb(args) -> Iterator[Database]:
+    mongo_client = MongoClient(args)
     try:
-        yield mongo_client
+        yield mongo_client.get_database("circles")
     finally:
-        await mongo_client.close()
+        mongo_client.close()
 
 
 @contextmanager

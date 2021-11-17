@@ -1,11 +1,8 @@
 import re
 from pathlib import Path
-from typing import Optional
-from typing import Union
+from typing import Optional, Union
 
-from cmyui.web import Connection
-from cmyui.web import Domain
-
+from cmyui.web import Connection, Domain
 from objects import glob
 
 HTTPResponse = Optional[Union[bytes, tuple[int, bytes]]]
@@ -18,6 +15,7 @@ domain = Domain({f'a.{BASE_DOMAIN}', 'a.ppy.sh'})
 AVATARS_PATH = Path.cwd() / '.data/avatars'
 
 DEFAULT_AVATAR = AVATARS_PATH / 'default.jpg'
+
 
 @domain.route(re.compile(r'^/(?:\d{1,10}(?:\.(?:jpg|jpeg|png))?|favicon\.ico)?$'))
 async def get_avatar(conn: Connection) -> HTTPResponse:

@@ -1,5 +1,4 @@
-from enum import IntFlag
-from enum import unique
+from enum import IntFlag, unique
 
 from misc.utils import escape_enum
 
@@ -17,7 +16,7 @@ class ClientFlags(IntFlag):
     # flags for timing errors or desync.
     SpeedHackDetected           = 1 << 1
 
-    # flags when two internal values mismatch.
+    # flags when two interFnal values mismatch.
     # XXX: this false flags a lot so most code
     # written around the community just ignores
     # this bit; i'll investigate a bit i guess.

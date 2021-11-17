@@ -561,6 +561,10 @@ def display_startup_dialog() -> None:
     if not glob.has_internet:
         log('Running in offline mode, some features '
             'will not be available.', Ansi.LRED)
+        
+def display_shutdown_dialog() -> None:
+    """Print any general information or warnings to the console."""
+    log('Shutting down.', Ansi.LRED)
 
 def create_config_from_default() -> None:
     """Create the default config from ext/config.sample.py"""

@@ -3,6 +3,7 @@ from typing import Callable
 
 __all__ = ('Achievement',)
 
+
 class Achievement:
     """A class to represent a single osu! achievement."""
     __slots__ = ('id', 'file', 'name', 'desc', 'cond')

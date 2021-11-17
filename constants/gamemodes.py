@@ -1,9 +1,9 @@
 import functools
-from enum import IntEnum
-from enum import unique
+from enum import IntEnum, unique
+
+from misc.utils import escape_enum
 
 from constants.mods import Mods
-from misc.utils import escape_enum
 
 __all__ = ('GameMode',)
 
@@ -33,18 +33,19 @@ gm_sql = (
     'ap_std'
 )
 
+
 @unique
 class GameMode(IntEnum):
-    vn_std   = 0
+    vn_std = 0
     vn_taiko = 1
     vn_catch = 2
     vn_mania = 3
 
-    rx_std   = 4
+    rx_std = 4
     rx_taiko = 5
     rx_catch = 6
 
-    ap_std   = 7
+    ap_std = 7
 
     @classmethod
     @functools.lru_cache(maxsize=32)
@@ -56,7 +57,7 @@ class GameMode(IntEnum):
         elif mods & Mods.AUTOPILOT:
             mode += 7
 
-        if mode > 7: # don't apply mods if invalid
+        if mode > 7:  # don't apply mods if invalid
             return cls(mode_vn)
 
         return cls(mode)

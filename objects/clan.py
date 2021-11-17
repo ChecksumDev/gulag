@@ -1,10 +1,6 @@
 from datetime import datetime
-from enum import IntEnum
-from enum import unique
+from enum import IntEnum, unique
 from typing import TYPE_CHECKING
-
-
-
 
 from objects import glob
 
@@ -21,7 +17,9 @@ class ClanPrivileges(IntEnum):
     Officer = 2
     Owner = 3
 
-#! TODO: MUST FIX THIS DAMN CLANS BEFORE PUSH 
+#! TODO: MUST FIX THIS DAMN CLANS BEFORE PUSH
+
+
 class Clan:
     """A class to represent a single gulag clan."""
     __slots__ = ('id', 'name', 'tag', 'created_at',
@@ -49,7 +47,7 @@ class Clan:
             'WHERE id = %s',
             [self.id, p.id]
         )
-        
+
         glob.db.users.update_one(
             {'id': p.id},
             {'$set': {'clan_id': self.id, 'clan_priv': 1}}

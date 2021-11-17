@@ -1,6 +1,6 @@
 __all__ = ('country_codes',)
 
-country_codes = { # talk about ugly lol
+country_codes = {  # talk about ugly lol
     'oc':   1, 'eu':   2, 'ad':   3, 'ae':   4, 'af':   5, 'ag':   6, 'ai':   7,
     'al':   8, 'am':   9, 'an':  10, 'ao':  11, 'aq':  12, 'ar':  13, 'as':  14,
     'at':  15, 'au':  16, 'aw':  17, 'az':  18, 'ba':  19, 'bb':  20, 'bd':  21,

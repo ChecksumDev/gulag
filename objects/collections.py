@@ -2,27 +2,18 @@
 # in a lot of these classes; needs refactor.
 
 import asyncio
-from typing import Any
-from typing import Iterator
-from typing import Optional
-from typing import overload
-from typing import Sequence
-from typing import Union
-
-
-from cmyui.logging import Ansi
-from cmyui.logging import log
+from typing import Any, Iterator, Optional, Sequence, Union, overload
 
 import misc.utils
+from cmyui.logging import Ansi, log
 from constants.privileges import Privileges
 from misc.utils import make_safe_name
+
 from objects import glob
 from objects.achievement import Achievement
 from objects.channel import Channel
-from objects.clan import Clan
-from objects.clan import ClanPrivileges
-from objects.match import MapPool
-from objects.match import Match
+from objects.clan import Clan, ClanPrivileges
+from objects.match import MapPool, Match
 from objects.player import Player
 
 __all__ = (

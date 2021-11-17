@@ -1,6 +1,6 @@
 import re
 
-from objects import glob # this will 100% become a problem
+from objects import glob  # this will 100% become a problem
 
 __all__ = ('osu_ver', 'username', 'email', 'now_playing', 'best_of')
 

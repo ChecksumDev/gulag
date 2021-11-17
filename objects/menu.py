@@ -1,14 +1,9 @@
 # note that this is still a very rough draft of
 # the concept and is subject to major refactoring
 import random
-from enum import IntEnum
-from enum import unique
-from typing import Awaitable
-from typing import Callable
-from typing import NamedTuple
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Union
+from enum import IntEnum, unique
+from typing import (TYPE_CHECKING, Awaitable, Callable, NamedTuple, Optional,
+                    Union)
 
 from objects import glob
 

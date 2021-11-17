@@ -1,9 +1,9 @@
 import functools
-from typing import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import packets
 from constants.privileges import Privileges
+
 from objects import glob
 
 if TYPE_CHECKING:

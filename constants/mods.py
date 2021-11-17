@@ -1,6 +1,5 @@
 import functools
-from enum import IntFlag
-from enum import unique
+from enum import IntFlag, unique
 
 from misc.utils import escape_enum
 
@@ -8,40 +7,41 @@ __all__ = ('Mods',)
 
 # NOTE: the order of some of these = stupid
 
+
 @unique
 class Mods(IntFlag):
-    NOMOD       = 0
-    NOFAIL      = 1 << 0
-    EASY        = 1 << 1
-    TOUCHSCREEN = 1 << 2 # old: 'NOVIDEO'
-    HIDDEN      = 1 << 3
-    HARDROCK    = 1 << 4
+    NOMOD = 0
+    NOFAIL = 1 << 0
+    EASY = 1 << 1
+    TOUCHSCREEN = 1 << 2  # old: 'NOVIDEO'
+    HIDDEN = 1 << 3
+    HARDROCK = 1 << 4
     SUDDENDEATH = 1 << 5
-    DOUBLETIME  = 1 << 6
-    RELAX       = 1 << 7
-    HALFTIME    = 1 << 8
-    NIGHTCORE   = 1 << 9
-    FLASHLIGHT  = 1 << 10
-    AUTOPLAY    = 1 << 11
-    SPUNOUT     = 1 << 12
-    AUTOPILOT   = 1 << 13
-    PERFECT     = 1 << 14
-    KEY4        = 1 << 15
-    KEY5        = 1 << 16
-    KEY6        = 1 << 17
-    KEY7        = 1 << 18
-    KEY8        = 1 << 19
-    FADEIN      = 1 << 20
-    RANDOM      = 1 << 21
-    CINEMA      = 1 << 22
-    TARGET      = 1 << 23
-    KEY9        = 1 << 24
-    KEYCOOP     = 1 << 25
-    KEY1        = 1 << 26
-    KEY3        = 1 << 27
-    KEY2        = 1 << 28
-    SCOREV2     = 1 << 29
-    MIRROR      = 1 << 30
+    DOUBLETIME = 1 << 6
+    RELAX = 1 << 7
+    HALFTIME = 1 << 8
+    NIGHTCORE = 1 << 9
+    FLASHLIGHT = 1 << 10
+    AUTOPLAY = 1 << 11
+    SPUNOUT = 1 << 12
+    AUTOPILOT = 1 << 13
+    PERFECT = 1 << 14
+    KEY4 = 1 << 15
+    KEY5 = 1 << 16
+    KEY6 = 1 << 17
+    KEY7 = 1 << 18
+    KEY8 = 1 << 19
+    FADEIN = 1 << 20
+    RANDOM = 1 << 21
+    CINEMA = 1 << 22
+    TARGET = 1 << 23
+    KEY9 = 1 << 24
+    KEYCOOP = 1 << 25
+    KEY1 = 1 << 26
+    KEY3 = 1 << 27
+    KEY2 = 1 << 28
+    SCOREV2 = 1 << 29
+    MIRROR = 1 << 30
 
     @functools.cache
     def __repr__(self) -> str:
@@ -49,7 +49,7 @@ class Mods(IntFlag):
             return 'NM'
 
         mod_str = []
-        _dict = mod2modstr_dict # global
+        _dict = mod2modstr_dict  # global
 
         for mod in Mods:
             if self.value & mod:
@@ -63,45 +63,45 @@ class Mods(IntFlag):
         # 1. mode-inspecific mod conflictions
         _dtnc = self & (Mods.DOUBLETIME | Mods.NIGHTCORE)
         if _dtnc == (Mods.DOUBLETIME | Mods.NIGHTCORE):
-            self &= ~Mods.DOUBLETIME # DTNC
+            self &= ~Mods.DOUBLETIME  # DTNC
         elif _dtnc and self & Mods.HALFTIME:
-            self &= ~Mods.HALFTIME # (DT|NC)HT
+            self &= ~Mods.HALFTIME  # (DT|NC)HT
 
         if self & Mods.EASY and self & Mods.HARDROCK:
-            self &= ~Mods.HARDROCK # EZHR
+            self &= ~Mods.HARDROCK  # EZHR
 
         if self & (Mods.NOFAIL | Mods.RELAX | Mods.AUTOPILOT):
             if self & Mods.SUDDENDEATH:
-                self &= ~Mods.SUDDENDEATH # (NF|RX|AP)SD
+                self &= ~Mods.SUDDENDEATH  # (NF|RX|AP)SD
             if self & Mods.PERFECT:
-                self &= ~Mods.PERFECT # (NF|RX|AP)PF
+                self &= ~Mods.PERFECT  # (NF|RX|AP)PF
 
         if self & (Mods.RELAX | Mods.AUTOPILOT):
             if self & Mods.NOFAIL:
-                self &= ~Mods.NOFAIL # (RX|AP)NF
+                self &= ~Mods.NOFAIL  # (RX|AP)NF
 
         if self & Mods.PERFECT and self & Mods.SUDDENDEATH:
-            self &= ~Mods.SUDDENDEATH # PFSD
+            self &= ~Mods.SUDDENDEATH  # PFSD
 
         # 2. remove mode-unique mods from incorrect gamemodes
-        if mode_vn != 0: # osu! specific
+        if mode_vn != 0:  # osu! specific
             self &= ~OSU_SPECIFIC_MODS
 
         # ctb & taiko have no unique mods
 
-        if mode_vn != 3: # mania specific
+        if mode_vn != 3:  # mania specific
             self &= ~MANIA_SPECIFIC_MODS
 
         # 3. mode-specific mod conflictions
         if mode_vn == 0:
             if self & Mods.AUTOPILOT:
                 if self & (Mods.SPUNOUT | Mods.RELAX):
-                    self &= ~Mods.AUTOPILOT # (SO|RX)AP
+                    self &= ~Mods.AUTOPILOT  # (SO|RX)AP
 
         if mode_vn == 3:
-            self &= ~Mods.RELAX # rx is std/taiko/ctb common
+            self &= ~Mods.RELAX  # rx is std/taiko/ctb common
             if self & Mods.HIDDEN and self & Mods.FADEIN:
-                self &= ~Mods.FADEIN # HDFI
+                self &= ~Mods.FADEIN  # HDFI
 
         # 4 remove multiple keymods
         # TODO: do this better
@@ -125,7 +125,7 @@ class Mods(IntFlag):
     def from_modstr(cls, s: str) -> 'Mods':
         # from fmt: `HDDTRX`
         mods = cls.NOMOD
-        _dict = modstr2mod_dict # global
+        _dict = modstr2mod_dict  # global
 
         # split into 2 character chunks
         mod_strs = [s[idx:idx+2].upper()
@@ -144,7 +144,7 @@ class Mods(IntFlag):
     @functools.lru_cache(maxsize=64)
     def from_np(cls, s: str, mode_vn: int) -> 'Mods':
         mods = cls.NOMOD
-        _dict = npstr2mod_dict # global
+        _dict = npstr2mod_dict  # global
 
         # TODO: dis
         for mod in s.split(' '):
@@ -157,6 +157,7 @@ class Mods(IntFlag):
         # call cls.filter_invalid_combos as we assume
         # the input string is from user input.
         return mods.filter_invalid_combos(mode_vn)
+
 
 modstr2mod_dict = {
     'NF': Mods.NOFAIL,
@@ -276,11 +277,11 @@ KEY_MODS = (
     Mods.KEY7 | Mods.KEY8 | Mods.KEY9
 )
 
-#FREE_MOD_ALLOWED = (
+# FREE_MOD_ALLOWED = (
 #    Mods.NOFAIL | Mods.EASY | Mods.HIDDEN | Mods.HARDROCK |
 #    Mods.SUDDENDEATH | Mods.FLASHLIGHT | Mods.FADEIN |
 #    Mods.RELAX | Mods.AUTOPILOT | Mods.SPUNOUT | KEY_MODS
-#)
+# )
 
 SCORE_INCREASE_MODS = (
     Mods.HIDDEN | Mods.HARDROCK | Mods.FADEIN |

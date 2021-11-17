@@ -58,6 +58,12 @@ async def run_server() -> None:
     from domains.osu import domain as osu_ppy_sh
     from domains.ava import domain as a_ppy_sh
     from domains.map import domain as b_ppy_sh
+
+    glob.app = cmyui.Server(
+        name=f'circles v1.0.0',
+        gzip=4, debug=glob.config.debug
+    )
+
     glob.app.add_domains({c_ppy_sh, osu_ppy_sh,
                           a_ppy_sh, b_ppy_sh})
 
@@ -88,17 +94,16 @@ async def run_server() -> None:
         log(f'-> Listening @ {glob.config.server_addr}', RGB(0x00ff7f))
         log(f'-> Total users: {glob.db.users.estimated_document_count()}', RGB(0x00ff7f))
         log(f'-> Max connections: {glob.config.max_conns}', RGB(0x00ff7f))
+        log(f'-> Debug mode: {glob.config.debug}', RGB(0x00ff7f))
 
         glob.ongoing_conns = []
         glob.shutting_down = False
 
         while not glob.shutting_down:
-            # TODO: this timeout based-solution can be heavily
-            #       improved and refactored out.
             try:
                 conn, _ = await asyncio.wait_for(
                     fut=loop.sock_accept(listening_sock),
-                    timeout=0.25
+                    timeout=0.5
                 )
             except asyncio.TimeoutError:
                 pass
@@ -117,20 +122,14 @@ async def main() -> int:
     glob.loop = asyncio.get_running_loop()
 
     async with (
-            misc.context.acquire_http_session(glob.has_internet) as glob.http_session,
-            misc.context.acquire_mongo_db(f'mongodb+srv://{glob.config.mongo["user"]}:{glob.config.mongo["password"]}@{glob.config.mongo["host"]}/{glob.config.mongo["db"]}?retryWrites=true&w=majority', glob.config.mongo) as glob.db):
-        await misc.utils.check_for_dependency_updates()
+            misc.context.acquire_http_session(glob.has_internet) as glob.http_session):
 
+        await misc.utils.check_for_dependency_updates()
         with (
+            misc.context.acquire_mongodb(f'mongodb+srv://{glob.config.mongo["user"]}:{glob.config.mongo["password"]}@{glob.config.mongo["host"]}/{glob.config.mongo["db"]}?retryWrites=true&w=majority') as glob.db,
             misc.context.acquire_geoloc_db_conn(GEOLOC_DB_FILE) as glob.geoloc_db,
             misc.context.acquire_datadog_client(glob.config.datadog) as glob.datadog
         ):
-            # TODO: refactor debugging so
-            # this can be moved to `run_server`.
-            glob.app = cmyui.Server(
-                name=f'circles v1.0.0',
-                gzip=4, debug=glob.config.debug
-            )
 
             # initialize housekeeping tasks to automatically manage
             # and ensure memory on ram & disk are kept up to date.
@@ -195,15 +194,15 @@ if __name__ == '__main__':
 
     try:
         asyncio.set_event_loop(loop)
-        raise SystemExit(loop.run_until_complete(main()))
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        pass
     finally:
-        try:
-            misc.utils._cancel_all_tasks(loop)
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.run_until_complete(loop.shutdown_default_executor())
-        finally:
-            asyncio.set_event_loop(None)
-            loop.close()
+        misc.utils._cancel_all_tasks(loop)
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.run_until_complete(loop.shutdown_default_executor())
+        loop.close()
+
 
 elif __name__ == 'main':
     # check specifically for ASGI servers; many related projects use

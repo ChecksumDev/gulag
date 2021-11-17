@@ -3,19 +3,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime as datetime
 from datetime import timedelta as timedelta
-from enum import IntEnum
-from enum import unique
-from typing import Optional
-from typing import overload
-from typing import Sequence
-from typing import TYPE_CHECKING
-from typing import Union
-
-
-from cmyui.logging import Ansi
-from cmyui.logging import log
+from enum import IntEnum, unique
+from typing import TYPE_CHECKING, Optional, Sequence, Union, overload
 
 import packets
+from cmyui.logging import Ansi, log
 from constants import regexes
 from constants.gamemodes import GameMode
 from constants.mods import Mods
@@ -26,8 +18,8 @@ from objects.beatmap import Beatmap
 if TYPE_CHECKING:
     from asyncio import TimerHandle
 
-    from objects.player import Player
     from objects.channel import Channel
+    from objects.player import Player
 
 __all__ = (
     'SlotStatus',

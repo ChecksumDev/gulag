@@ -16,45 +16,30 @@ from datetime import datetime, timedelta
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 from time import perf_counter_ns as clock_ns
-from typing import Awaitable
-from typing import Callable
-from typing import NamedTuple
-from typing import Optional
-from typing import Sequence
-from typing import TYPE_CHECKING
-from typing import TypedDict
-from typing import Union
-
+from typing import (TYPE_CHECKING, Awaitable, Callable, NamedTuple, Optional,
+                    Sequence, TypedDict, Union)
 
 import cmyui.utils
-import psutil
-from cmyui.osu.oppai_ng import OppaiWrapper
-from pymongo import ASCENDING
-from peace_performance_python.objects import Beatmap as PeaceMap
-from peace_performance_python.objects import Calculator as PeaceCalculator
-
 import misc.utils
 import packets
-from constants import regexes
-from constants.gamemodes import GameMode
-from constants.mods import Mods
-from constants.mods import SPEED_CHANGING_MODS
-from constants.privileges import Privileges
+import psutil
+from cmyui.osu.oppai_ng import OppaiWrapper
 from misc.utils import seconds_readable
 from objects import glob
-from objects.beatmap import Beatmap
-from objects.beatmap import ensure_local_osu_file
-from objects.beatmap import RankedStatus
-from objects.clan import Clan
-from objects.clan import ClanPrivileges
-from objects.match import MapPool
-from objects.match import Match
-from objects.match import MatchTeams
-from objects.match import MatchTeamTypes
-from objects.match import MatchWinConditions
-from objects.match import SlotStatus
+from objects.beatmap import Beatmap, RankedStatus, ensure_local_osu_file
+from objects.clan import Clan, ClanPrivileges
+from objects.match import (MapPool, Match, MatchTeams, MatchTeamTypes,
+                           MatchWinConditions, SlotStatus)
 from objects.player import Player
 from objects.score import SubmissionStatus
+from peace_performance_python.objects import Beatmap as PeaceMap
+from peace_performance_python.objects import Calculator as PeaceCalculator
+from pymongo import ASCENDING
+
+from constants import regexes
+from constants.gamemodes import GameMode
+from constants.mods import SPEED_CHANGING_MODS, Mods
+from constants.privileges import Privileges
 
 if TYPE_CHECKING:
     from objects.channel import Channel
