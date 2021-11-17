@@ -44,11 +44,14 @@ async def _disconnect_ghosts(interval: int) -> None:
     while True:
         await asyncio.sleep(interval)
         current_time = time.time()
-
-        for p in glob.players:
-            if current_time - p.last_recv_time > OSU_CLIENT_MIN_PING_INTERVAL:
-                log(f'Auto-dced {p}.', Ansi.LMAGENTA)
-                p.logout()
+        
+        if len(glob.players) > 0:
+            for p in glob.players:
+                if current_time - p.last_recv_time > OSU_CLIENT_MIN_PING_INTERVAL:
+                    log(f'Auto-dced {p}.', Ansi.LMAGENTA)
+                    p.logout()
+        else:
+            log('No players online to disconnect.', Ansi.LMAGENTA)
 
 
 async def _reroll_bot_status(interval: int) -> None:

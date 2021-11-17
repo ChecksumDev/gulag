@@ -11,8 +11,9 @@
 # you can also test gulag's rest api using my test server,
 # e.g https://osu.cmyui.xyz/api/get_player_scores?id=3&scope=best
 
-import asyncio
 import os
+os.environ['PYTHONASYNCIODEBUG'] = '1'
+import asyncio
 import signal
 import socket
 from datetime import datetime
@@ -20,7 +21,7 @@ from pathlib import Path
 
 
 import cmyui
-from cmyui.logging import RGB, log
+from cmyui.logging import RGB, Ansi, log
 
 import bg_loops
 import misc.context
@@ -54,19 +55,18 @@ async def run_server() -> None:
 
     # fetch our server's endpoints; gulag supports
     # osu!'s handlers across multiple domains.
-    from domains.cho import domain as c_ppy_sh  # /c[e4-6]?.ppy.sh/
-    from domains.osu import domain as osu_ppy_sh
-    from domains.ava import domain as a_ppy_sh
-    from domains.map import domain as b_ppy_sh
-
     glob.app = cmyui.Server(
         name=f'circles v1.0.0',
         gzip=4, debug=glob.config.debug
     )
 
+    from domains.cho import domain as c_ppy_sh  # /c[e4-6]?.ppy.sh/
+    from domains.osu import domain as osu_ppy_sh
+    from domains.ava import domain as a_ppy_sh
+    from domains.map import domain as b_ppy_sh
     glob.app.add_domains({c_ppy_sh, osu_ppy_sh,
                           a_ppy_sh, b_ppy_sh})
-
+    
     # support both INET and UNIX sockets
     if misc.utils.is_inet_address(glob.config.server_addr):
         sock_family = socket.AF_INET
@@ -83,7 +83,11 @@ async def run_server() -> None:
     # create our transport layer socket; osu! uses tcp/ip
     with socket.socket(sock_family, socket.SOCK_STREAM) as listening_sock:
         listening_sock.setblocking(False)  # asynchronous
+        #listening_sock.bind(glob.config.server_addr)
+        #port = 1234
+        print(sock_family, socket.SOCK_STREAM)
         listening_sock.bind(glob.config.server_addr)
+        log(loop.get_debug(), Ansi.GREEN)
 
         if sock_family == socket.AF_UNIX:
             # using unix socket - give the socket file
@@ -100,10 +104,12 @@ async def run_server() -> None:
         glob.shutting_down = False
 
         while not glob.shutting_down:
+            # TODO: this timeout based-solution can be heavily
+            #       improved and refactored out.
             try:
                 conn, _ = await asyncio.wait_for(
                     fut=loop.sock_accept(listening_sock),
-                    timeout=0.5
+                    timeout=0.25
                 )
             except asyncio.TimeoutError:
                 pass
@@ -116,15 +122,14 @@ async def run_server() -> None:
         # using unix socket - remove from filesystem
         os.remove(glob.config.server_addr)
 
-
 async def main() -> int:
     """Initialize, and start up the server."""
     glob.loop = asyncio.get_running_loop()
 
     async with (
             misc.context.acquire_http_session(glob.has_internet) as glob.http_session):
-
         await misc.utils.check_for_dependency_updates()
+
         with (
             misc.context.acquire_mongodb(f'mongodb+srv://{glob.config.mongo["user"]}:{glob.config.mongo["password"]}@{glob.config.mongo["host"]}/{glob.config.mongo["db"]}?retryWrites=true&w=majority') as glob.db,
             misc.context.acquire_geoloc_db_conn(GEOLOC_DB_FILE) as glob.geoloc_db,
@@ -191,18 +196,18 @@ if __name__ == '__main__':
         pass
 
     loop = asyncio.new_event_loop()
-
+    
     try:
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass
+        raise SystemExit(loop.run_until_complete(main()))
     finally:
-        misc.utils._cancel_all_tasks(loop)
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.run_until_complete(loop.shutdown_default_executor())
-        loop.close()
-
+        try:
+            misc.utils._cancel_all_tasks(loop)
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.run_until_complete(loop.shutdown_default_executor())
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
 
 elif __name__ == 'main':
     # check specifically for ASGI servers; many related projects use
