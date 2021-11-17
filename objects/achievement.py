@@ -8,7 +8,7 @@ class Achievement:
     """A class to represent a single osu! achievement."""
     __slots__ = ('id', 'file', 'name', 'desc', 'cond')
 
-    def __init__(self, id: int, file: str, name: str,
+    def __init__(self, _id: str, file: str, name: str,
                  desc: str, cond: Callable) -> None:
         self.id = id
         self.file = file

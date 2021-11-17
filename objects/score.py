@@ -177,15 +177,9 @@ class Score:
         """Create a score object from sql using it's scoreid."""
         # XXX: perhaps in the future this should take a gamemode rather
         # than just the sql table? just faster on the current setup :P
-        res = glob.db.fetch(
-            'SELECT id, map_md5, userid, pp, score, '
-            'max_combo, mods, acc, n300, n100, n50, '
-            'nmiss, ngeki, nkatu, grade, perfect, '
-            'status, mode, play_time, '
-            'time_elapsed, client_flags, online_checksum '
-            f'FROM {scores_table} WHERE id = %s',
-            [score_id], _dict=False
-        )
+        res = glob.db[scores_table].find_one({
+            '_id': score_id
+        })
 
         if not res:
             return
@@ -316,16 +310,27 @@ class Score:
             scoring_metric = 'score'
             score = self.score
 
-        res = glob.db.fetch(
-            f'SELECT COUNT(*) AS c FROM {scores_table} s '
-            'INNER JOIN users u ON u.id = s.userid '
-            'WHERE s.map_md5 = %s AND s.mode = %s '
-            'AND s.status = 2 AND u.priv & 1 '
-            f'AND s.{scoring_metric} > %s',
-            [self.bmap.md5, self.mode.as_vanilla, score]
-        )
+        res = glob.db[scores_table].count_documents({
+            'map_md5': self.bmap.md5,
+            'mode': self.mode.as_vanilla,
+            '$lookup': {
+                'from': 'users',
+                'localField': 'userid',
+                'foreignField': 'id',
+                'as': 'user'
+            },
+            '$match': {
+                'status': 2,
+                '$expr': {
+                    '$and': [
+                        {'$eq': ['$user.priv', 1]},
+                        {'$gt': [scoring_metric, score]}
+                    ]
+                }
+            }
+        })
 
-        return res['c'] + 1 if res else 1
+        return res + 1 if res else 1
 
     def calc_diff(self, osu_file_path: Path) -> tuple[float, float]:
         """Calculate PP and star rating for our score."""
@@ -399,12 +404,17 @@ class Score:
 
         # find any other `status = 2` scores we have
         # on the map. If there are any, store
-        res = glob.db.fetch(
-            f'SELECT id, pp FROM {scores_table} '
-            'WHERE userid = %s AND map_md5 = %s '
-            'AND mode = %s AND status = 2',
-            [self.player.id, self.bmap.md5, self.mode.as_vanilla]
-        )
+        res = glob.db[scores_table].find_one({
+            'map_md5': self.bmap.md5,
+            'mode': self.mode.as_vanilla,
+            'userid': self.player.id,
+            'status': 2
+        })
+
+        if res:
+            self.status = SubmissionStatus.PASSED
+        else:
+            self.status = SubmissionStatus.FAILED
 
         if res:
             # we have a score on the map.

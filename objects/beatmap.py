@@ -237,7 +237,7 @@ class Beatmap:
         self.set: Optional[BeatmapSet] = None
 
         self.md5 = kwargs.get('md5', '')
-        self.id = kwargs.get('id', 0)
+        self.bmap_id = kwargs.get('id', 0)
         self.set_id = kwargs.get('set_id', 0)
 
         self.artist = kwargs.get('artist', '')
@@ -279,7 +279,7 @@ class Beatmap:
     @property
     def url(self) -> str:
         """The osu! beatmap url for `self`."""
-        return f'https://osu.{BASE_DOMAIN}/beatmaps/{self.id}'
+        return f'https://osu.{BASE_DOMAIN}/beatmaps/{self.bmap_id}'
 
     @property
     def embed(self) -> str:
@@ -305,7 +305,7 @@ class Beatmap:
     def as_dict(self) -> dict[str, object]:
         return {
             'md5': self.md5,
-            'id': self.id,
+            'bmap_id': self.bmap_id,
             'set_id': self.set_id,
             'artist': self.artist,
             'title': self.title,
@@ -348,12 +348,7 @@ class Beatmap:
                 # from the db, or the osu!api. we want to get
                 # the whole set cached all at once to minimize
                 # osu!api requests overall in the long run.
-                res = glob.db.fetch(
-                    'SELECT set_id '
-                    'FROM maps '
-                    'WHERE md5 = %s',
-                    [md5]
-                )
+                res = glob.db.maps.find_one({'md5': md5})
 
                 if res:
                     # found set id in db
@@ -389,12 +384,7 @@ class Beatmap:
             # or the osu!api. we want to get the whole set
             # cached all at once to minimize osu!api
             # requests overall in the long run
-            res = glob.db.fetch(
-                'SELECT set_id '
-                'FROM maps '
-                'WHERE id = %s',
-                [bid]
-            )
+            res = glob.db.maps.find_one({'id': bid})
 
             if res:
                 # found set id in db
@@ -431,7 +421,7 @@ class Beatmap:
         # NOTE: `self` is not guaranteed to have any attributes
         #       initialized when this is called.
         self.md5 = osuapi_resp['file_md5']
-        #self.id = int(osuapi_resp['beatmap_id'])
+        #self.bmap_id = int(osuapi_resp['beatmap_id'])
         self.set_id = int(osuapi_resp['beatmapset_id'])
 
         self.artist, self.title, self.version, self.creator = (
@@ -541,7 +531,7 @@ class BeatmapSet:
     __slots__ = ('id', 'last_osuapi_check', 'maps')
 
     def __init__(self, **kwargs) -> None:
-        self.id = kwargs.get('id', 0)
+        self.bmap_id = kwargs.get('id', 0)
 
         self.last_osuapi_check: Optional[datetime] = kwargs.get(
             'last_osuapi_check', None)
@@ -559,7 +549,7 @@ class BeatmapSet:
     @property
     def url(self) -> str:  # same as above, just no beatmap id
         """The online url for this beatmap set."""
-        return f'https://osu.{BASE_DOMAIN}/beatmapsets/{self.id}'
+        return f'https://osu.{BASE_DOMAIN}/beatmapsets/{self.bmap_id}'
 
     @functools.cache
     def all_officially_ranked_or_approved(self) -> bool:
@@ -617,7 +607,7 @@ class BeatmapSet:
     async def _update_if_available(self) -> None:
         """Fetch newest data from the osu!api, check for differences
            and propogate any update into our cache & database."""
-        if api_data := await osuapiv1_getbeatmaps(s=self.id):
+        if api_data := await osuapiv1_getbeatmaps(s=self.bmap_id):
             current_maps = {bmap.id: bmap for bmap in self.maps}
             self.last_osuapi_check = datetime.now()
 
@@ -646,44 +636,50 @@ class BeatmapSet:
             # i want to see how frequently this happens and see some examples
             # of when it's triggered since i'm not 100% sure about it, cheers.
             await misc.utils.log_strange_occurrence(
-                f'_update_if_available no data, setid: {self.id}'
+                f'_update_if_available no data, setid: {self.bmap_id}'
             )
 
     async def _save_to_sql(self) -> None:
         """Save the object's attributes into the database."""
-        async with glob.db.pool.acquire() as db_conn:
-            async with db_conn.cursor() as db_cursor:
-                await db_cursor.execute(
-                    'REPLACE INTO mapsets '
-                    '(server, id, last_osuapi_check) '
-                    'VALUES ("osu!", %s, %s)',
-                    [self.id, self.last_osuapi_check]
-                )
+        await db_cursor.execute(
+            'REPLACE INTO mapsets '
+            '(server, id, last_osuapi_check) '
+            'VALUES ("osu!", %s, %s)',
+            [self.bmap_id, self.last_osuapi_check]
+        )
 
-                await db_cursor.executemany(
-                    'REPLACE INTO maps ('
-                    'server, md5, id, set_id, '
-                    'artist, title, version, creator, '
-                    'filename, last_update, total_length, '
-                    'max_combo, status, frozen, '
-                    'plays, passes, mode, bpm, '
-                    'cs, od, ar, hp, diff'
-                    ') VALUES ('
-                    '"osu!", %s, %s, %s, '
-                    '%s, %s, %s, %s, '
-                    '%s, %s, %s, '
-                    '%s, %s, %s, '
-                    '%s, %s, %s, %s, '
-                    '%s, %s, %s, %s, %s'
-                    ')', [(
-                        bmap.md5, bmap.id, bmap.set_id,
-                        bmap.artist, bmap.title, bmap.version, bmap.creator,
-                        bmap.filename, bmap.last_update, bmap.total_length,
-                        bmap.max_combo, bmap.status, bmap.frozen,
-                        bmap.plays, bmap.passes, bmap.mode, bmap.bpm,
-                        bmap.cs, bmap.od, bmap.ar, bmap.hp, bmap.diff
-                    ) for bmap in self.maps]
-                )
+        # Convert to mongodb
+        glob.db.mapsets.update_one(
+            {'_id': self.bmap_id},
+            {'$set': {
+                'last_osuapi_check': self.last_osuapi_check
+            }},
+        )
+
+        await db_cursor.executemany(
+            'REPLACE INTO maps ('
+            'server, md5, id, set_id, '
+            'artist, title, version, creator, '
+            'filename, last_update, total_length, '
+            'max_combo, status, frozen, '
+            'plays, passes, mode, bpm, '
+            'cs, od, ar, hp, diff'
+            ') VALUES ('
+            '"osu!", %s, %s, %s, '
+            '%s, %s, %s, %s, '
+            '%s, %s, %s, '
+            '%s, %s, %s, '
+            '%s, %s, %s, %s, '
+            '%s, %s, %s, %s, %s'
+            ')', [(
+                bmap.md5, bmap.id, bmap.set_id,
+                bmap.artist, bmap.title, bmap.version, bmap.creator,
+                bmap.filename, bmap.last_update, bmap.total_length,
+                bmap.max_combo, bmap.status, bmap.frozen,
+                bmap.plays, bmap.passes, bmap.mode, bmap.bpm,
+                bmap.cs, bmap.od, bmap.ar, bmap.hp, bmap.diff
+            ) for bmap in self.maps]
+        )
 
     @staticmethod
     async def _from_bsid_cache(bsid: int) -> Optional['BeatmapSet']:
@@ -701,7 +697,7 @@ class BeatmapSet:
         """Fetch a mapset from the osu!api by set id."""
         if api_data := await osuapiv1_getbeatmaps(s=bsid):
             self: 'BeatmapSet' = cls.__new__(cls)
-            self.id = bsid
+            self.bmap_id = bsid
             self.maps = []
             self.last_osuapi_check = datetime.now()
 

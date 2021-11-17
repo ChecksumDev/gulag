@@ -109,7 +109,7 @@ class ScoreFrame:
 class MapPool:
     __slots__ = ('id', 'name', 'created_at', 'created_by', 'maps')
 
-    def __init__(self, id: int, name: str,
+    def __init__(self, _id: str, name: str,
                  created_at: datetime, created_by: 'Player') -> None:
         self.id = id
         self.name = name
@@ -124,14 +124,7 @@ class MapPool:
 
     async def maps_from_sql(self) -> None:
         """Retrieve all maps from sql to populate `self.maps`."""
-        await db_cursor.execute(
-            'SELECT map_id, mods, slot '
-            'FROM tourney_pool_maps '
-            'WHERE pool_id = %s',
-            [self.id]
-        )
-
-        async for row in db_cursor:
+        async for row in glob.db.tourney_pools.find_one({'pool_id': self.id}):
             map_id = row['map_id']
             bmap = await Beatmap.from_bid(map_id)
 
@@ -142,12 +135,8 @@ class MapPool:
                 # it from not only this pool, but all pools.
                 # TODO: perhaps discord webhook?
                 log(f'Removing {map_id} from pool {self.name} (not found).', Ansi.LRED)
-
-                await db_cursor.execute(
-                    'DELETE FROM tourney_pool_maps '
-                    'WHERE map_id = %s',
-                    [map_id]
-                )
+                
+                glob.db.tourney_pools.delete_one({'map_id': map_id})
                 continue
 
             key: tuple[Mods, int] = (Mods(row['mods']), row['slot'])

@@ -96,7 +96,7 @@ class Channels(list[Channel]):
                 read_priv=Privileges(row['read_priv']),
                 write_priv=Privileges(row['write_priv']),
                 auto_join=row['auto_join'] == 1
-            ) async for row in channels
+            ) for row in channels
         ])
 
 
@@ -216,14 +216,7 @@ class Players(list[Player]):
     async def get_sql(self, **kwargs: object) -> Optional[Player]:
         """Get a player by token, id, or name from sql."""
         attr, val = self._parse_attr(kwargs)
-
-        # try to get from sql.
-        res = glob.db.fetch(
-            'SELECT id, name, priv, pw_bcrypt, '
-            'silence_end, clan_id, clan_priv, api_key '
-            f'FROM users WHERE {attr} = %s',
-            [val]
-        )
+        res = glob.db.users.find_one({f'{attr}': val})
 
         if not res:
             return
@@ -331,18 +324,17 @@ class MapPools(list[MapPool]):
     async def prepare(cls) -> 'MapPools':
         """Fetch data from sql & return; preparing to run the server."""
         log('Fetching mappools from sql.', Ansi.LCYAN)
-        await db_cursor.execute('SELECT * FROM tourney_pools')
         obj = cls([
             MapPool(
                 id=row['id'],
                 name=row['name'],
                 created_at=row['created_at'],
                 created_by=await glob.players.get_ensure(id=row['created_by'])
-            ) async for row in db_cursor
+            ) for row in glob.db.tourney_pools.find()
         ])
 
         for pool in obj:
-            await pool.maps_from_sql(db_cursor)
+            await pool.maps_from_sql()
 
         return obj
 
@@ -405,11 +397,10 @@ class Clans(list[Clan]):
     async def prepare(cls) -> 'Clans':
         """Fetch data from sql & return; preparing to run the server."""
         log('Fetching clans from sql.', Ansi.LCYAN)
-        await db_cursor.execute('SELECT * FROM clans')
-        obj = cls([Clan(**row) async for row in db_cursor])
+        obj = cls([Clan(**row) for row in glob.db.clans.find()])
 
         for clan in obj:
-            await clan.members_from_sql(db_cursor)
+            await clan.members_from_sql()
 
         return obj
 
@@ -421,22 +412,21 @@ async def initialize_ram_caches() -> None:
     glob.players = Players()
 
     # static (inactive) sets, in ram & sql
-    glob.channels = await Channels.prepare(db_cursor)
-    glob.clans = await Clans.prepare(db_cursor)
-    glob.pools = await MapPools.prepare(db_cursor)
+    glob.channels = await Channels.prepare()
+    glob.clans = await Clans.prepare()
+    glob.pools = await MapPools.prepare()
 
-    bot_name = await misc.utils.fetch_bot_name(db_cursor)
+    bot_name = await misc.utils.fetch_bot_name()
 
     # create bot & add it to online players
-    glob.bot = Player(id=1, name=bot_name, login_time=float(0x7fffffff),  # (never auto-dc)
+    glob.bot = Player(_id=1, name=bot_name, login_time=float(0x7fffffff),  # (never auto-dc)
                       priv=Privileges.Normal, bot_client=True)
     glob.players.append(glob.bot)
 
     # global achievements (sorted by vn gamemodes)
     glob.achievements = []
 
-    await db_cursor.execute('SELECT * FROM achievements')
-    async for row in db_cursor:
+    for row in glob.db.achievements.find():
         # NOTE: achievement conditions are stored as stringified python
         # expressions in the database to allow for extensive customizability.
         condition = eval(f'lambda score, mode_vn: {row.pop("cond")}')
@@ -444,13 +434,7 @@ async def initialize_ram_caches() -> None:
 
         glob.achievements.append(achievement)
 
-    # static api keys
-    await db_cursor.execute(
-        'SELECT id, api_key FROM users '
-        'WHERE api_key IS NOT NULL'
-    )
-
     glob.api_keys = {
-        row['api_key']: row['id']
-        async for row in db_cursor
+        row['api_key']: row['_id']
+        for row in glob.db.users.find({'api_key': {'$exists': True}})
     }

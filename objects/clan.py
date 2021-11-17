@@ -17,8 +17,6 @@ class ClanPrivileges(IntEnum):
     Officer = 2
     Owner = 3
 
-#! TODO: MUST FIX THIS DAMN CLANS BEFORE PUSH
-
 
 class Clan:
     """A class to represent a single gulag clan."""
@@ -41,13 +39,6 @@ class Clan:
         """Add a given player to the clan's members."""
         self.members.add(p.id)
 
-        glob.db.execute(
-            'UPDATE users '
-            'SET clan_id = %s, clan_priv = 1 '
-            'WHERE id = %s',
-            [self.id, p.id]
-        )
-
         glob.db.users.update_one(
             {'id': p.id},
             {'$set': {'clan_id': self.id, 'clan_priv': 1}}
@@ -60,41 +51,38 @@ class Clan:
         """Remove a given player from the clan's members."""
         self.members.remove(p.id)
 
-        async with glob.db.pool.acquire() as conn:
-            async with conn.cursor() as db_cursor:
-                await db_cursor.execute(
-                    'UPDATE users '
-                    'SET clan_id = 0, clan_priv = 0 '
-                    'WHERE id = %s',
-                    [p.id]
-                )
+        glob.db.users.update_one(
+            {'id': p.id},
+            {'$set': {'clan_id': 0, 'clan_priv': 0}}
+        )
 
-                if not self.members:
-                    # no members left, disband clan.
-                    await db_cursor.execute(
-                        'DELETE FROM clans '
-                        'WHERE id = %s',
-                        [self.id]
-                    )
-                elif p.id == self.owner:
-                    # owner leaving and members left,
-                    # transfer the ownership.
-                    # TODO: prefer officers
-                    self.owner = next(iter(self.members))
+        if not self.members:
+            # no members left, disband clan.
+            glob.db.clans.remove({'_id': self.id})
 
-                    await db_cursor.execute(
-                        'UPDATE clans '
-                        'SET owner = %s '
-                        'WHERE id = %s',
-                        [self.owner, self.id]
-                    )
+        elif p.id == self.owner:
+            # owner leaving and members left,
+            # transfer the ownership.
+            # TODO: prefer officers
+            self.owner = next(iter(self.members))
 
-                    await db_cursor.execute(
-                        'UPDATE users '
-                        'SET clan_priv = 3 '
-                        'WHERE id = %s',
-                        [self.owner]
-                    )
+            glob.clans.update_one({'id': self.id}, {
+                                  '$set': {'owner': self.owner}})
+
+            glob.db.users.update_one({'id': self.owner}, {
+                                     '$set': {'clan_priv': 3}})
 
         p.clan = None
         p.clan_priv = None
+
+    async def members_from_sql(self) -> None:
+        """Fetch all members from sql."""
+        # TODO: in the future, we'll want to add
+        # clan 'mods', so fetching rank here may
+        # be a good idea to sort people into
+        # different roles.
+        for row in glob.db.users.find({'clan_id': self.id}):
+            self.members.add(row['id'])
+
+    def __repr__(self) -> str:
+        return f'[{self.tag}] {self.name}'

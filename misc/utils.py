@@ -112,8 +112,8 @@ def make_safe_name(name: str) -> str:
 
 async def fetch_bot_name() -> str:
     """Fetch the bot's name from the database, if available."""
-    bot = glob.db.users.find_one({'_id': glob.config['bot_id']})
-
+    bot = glob.db.users.find_one({'_id': "61932fe7821f7bdc6ed4092a"})
+    
     if bot is None:
         return 'Axioma'
 

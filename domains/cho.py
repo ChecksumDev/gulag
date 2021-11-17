@@ -529,23 +529,38 @@ async def login(
 
     """ login credentials verified """
 
-    await db_cursor.execute(
-        'INSERT INTO ingame_logins '
-        '(userid, ip, osu_ver, osu_stream, datetime) '
-        'VALUES (%s, %s, %s, %s, NOW())',
-        [user_info['id'], str(ip), osu_ver_date, osu_ver_stream]
+    glob.db.ingame_logins.insert_one(
+        {
+            'userid': user_info['id'],
+            'ip': str(ip),
+            'osu_ver': osu_ver_date,
+            'osu_stream': osu_ver_stream,
+            'datetime': datetime.utcnow()
+        }
     )
 
-    await db_cursor.execute(
-        'INSERT INTO client_hashes '
-        '(userid, osupath, adapters, uninstall_id,'
-        ' disk_serial, latest_time, occurrences) '
-        'VALUES (%s, %s, %s, %s, %s, NOW(), 1) '
-        'ON DUPLICATE KEY UPDATE '
-        'occurrences = occurrences + 1, '
-        'latest_time = NOW() ',
-        [user_info['id'], osu_path_md5,
-         adapters_md5, uninstall_md5, disk_sig_md5]
+    # await db_cursor.execute(
+    #     'INSERT INTO client_hashes '
+    #     '(userid, osupath, adapters, uninstall_id,'
+    #     ' disk_serial, latest_time, occurrences) '
+    #     'VALUES (%s, %s, %s, %s, %s, NOW(), 1) '
+    #     'ON DUPLICATE KEY UPDATE '
+    #     'occurrences = occurrences + 1, '
+    #     'latest_time = NOW() ',
+    #     [user_info['id'], osu_path_md5,
+    #      adapters_md5, uninstall_md5, disk_sig_md5]
+    # )
+    
+    #convert to mongodb format
+    glob.db.client_hashes.insert_one(
+        {
+            'userid': user_info['id'],
+            'osupath': osu_path_md5,
+            'adapters': adapters_md5,
+            'uninstall_id': uninstall_md5,
+            'disk_serial': disk_sig_md5,
+            'latest_time': datetime.utcnow()
+        }
     )
 
     # TODO: store adapters individually
@@ -559,18 +574,21 @@ async def login(
                      'h.disk_serial = %s')
         hw_args = [adapters_md5, uninstall_md5, disk_sig_md5]
 
-    await db_cursor.execute(
-        'SELECT u.name, u.priv, h.occurrences '
-        'FROM client_hashes h '
-        'INNER JOIN users u ON h.userid = u.id '
-        'WHERE h.userid != %s AND '
-        f'({hw_checks})',
-        [user_info['id'], *hw_args]
+    res = glob.db.client_hashes.find_one(
+        {
+            'userid': user_info['id'],
+            'osupath': osu_path_md5,
+            '$or': [
+                {'adapters': adapters_md5},
+                {'uninstall_id': uninstall_md5},
+                {'disk_serial': disk_sig_md5}
+            ]
+        }
     )
-
-    if db_cursor.rowcount != 0:
+        
+    if res:
         # we have other accounts with matching hashes
-        hw_matches = await db_cursor.fetchall()
+        hw_matches = None
 
         if user_info['priv'] & Privileges.Verified:
             # TODO: this is a normal, registered & verified player.
@@ -614,10 +632,10 @@ async def login(
             # bugfix for old gulag versions when
             # country wasn't stored on registration.
             log(f"Fixing {username}'s country.", Ansi.LGREEN)
-
-            await db_cursor.execute(
-                'UPDATE users SET country = %s WHERE id = %s',
-                [user_info['geoloc']['country']['acronym'], user_info['id']]
+            
+            glob.db.users.update_one(
+                {'id': user_info['id']},
+                {'$set': {'country': user_info['geoloc']['country']['acronym']}}
             )
 
     p = Player(
@@ -708,7 +726,7 @@ async def login(
             [p.id]
         )
 
-        if db_cursor.rowcount != 0:
+        if glob.db.mail.find({'to_id': p.id, 'read': 0}) is not None:
             sent_to = set()  # ids
 
             async for msg in db_cursor:
@@ -936,14 +954,23 @@ class SendPrivateMessage(BasePacket):
                     'receive your messsage on their next login.'
                 ))
 
-            # insert mail into db, marked as unread.
-            glob.db.execute(
-                'INSERT INTO `mail` '
-                '(`from_id`, `to_id`, `msg`, `time`) '
-                'VALUES (%s, %s, %s, UNIX_TIMESTAMP())',
-                [p.id, t.id, msg]
+            glob.db.mail.insert_one(
+                {
+                    'from_id': p.id,
+                    'to_id': t.id,
+                    'msg': msg,
+                    'time': datetime.now()
+                }
             )
+
+            # inform sender that the message was sent
+            p.enqueue(packets.userDMSent(t_name))
         else:
+            # target is bot, send the message to the bot
+            # and inform the sender that the message was sent.
+            p.send(msg, sender=p)
+            p.enqueue(packets.userDMSent(t_name))
+            
             # messaging the bot, check for commands & /np.
             if msg.startswith(glob.config.command_prefix):
                 cmd = await commands.process_commands(p, t, msg)

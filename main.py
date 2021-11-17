@@ -12,6 +12,8 @@
 # e.g https://osu.cmyui.xyz/api/get_player_scores?id=3&scope=best
 
 import os
+
+from objects.collections import initialize_ram_caches
 os.environ['PYTHONASYNCIODEBUG'] = '1'
 import asyncio
 import signal
@@ -135,7 +137,8 @@ async def main() -> int:
             misc.context.acquire_geoloc_db_conn(GEOLOC_DB_FILE) as glob.geoloc_db,
             misc.context.acquire_datadog_client(glob.config.datadog) as glob.datadog
         ):
-
+            await initialize_ram_caches()
+            
             # initialize housekeeping tasks to automatically manage
             # and ensure memory on ram & disk are kept up to date.
             await bg_loops.initialize_housekeeping_tasks()

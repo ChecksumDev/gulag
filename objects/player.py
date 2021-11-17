@@ -166,7 +166,7 @@ class Player:
         '__dict__'
     )
 
-    def __init__(self, _id: int, name: str,
+    def __init__(self, _id: str, name: str,
                  priv: Union[Privileges, int], **extras: Any) -> None:
         self.id = _id
         self.name = name
