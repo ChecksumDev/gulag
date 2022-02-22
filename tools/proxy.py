@@ -118,8 +118,6 @@ def response(flow: http.HTTPFlow) -> None:
     sys.stdout.write(
         f'\x1b[0;93m[{flow.request.method}] {flow.request.url}\x1b[0m\n')
     body_view = memoryview(body)
-    body_len = len(body)
-
     if r_match['subdomain'] in ('c', 'ce', 'c4', 'c5', 'c6'):
         if flow.request.method == 'POST':
             packet_num = 1
@@ -142,6 +140,8 @@ def response(flow: http.HTTPFlow) -> None:
                     sys.stdout.flush()
         sys.stdout.write('\n')
     else:  # format varies per request
+        body_len = len(body)
+
         if (  # todo check host
             (
                 # jfif, jpe, jpeg, jpg graphics file

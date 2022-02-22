@@ -291,11 +291,7 @@ class Score:
                     s.status = SubmissionStatus.FAILED
         else:
             s.pp = s.sr = 0.0
-            if s.passed:
-                s.status = SubmissionStatus.SUBMITTED
-            else:
-                s.status = SubmissionStatus.FAILED
-
+            s.status = SubmissionStatus.SUBMITTED if s.passed else SubmissionStatus.FAILED
         return s
 
     """Methods to calculate internal data for a score."""
@@ -351,11 +347,7 @@ class Score:
                 ezpp.calculate(osu_file_path)
 
                 pp = ezpp.get_pp()
-                if pp not in (math.inf, math.nan):
-                    return (pp, ezpp.get_sr())
-                else:
-                    # TODO: report to logserver
-                    return (0.0, 0.0)
+                return (pp, ezpp.get_sr()) if pp not in (math.inf, math.nan) else (0.0, 0.0)
         elif mode_vn in (1, 2):  # taiko, catch
             beatmap = PeaceMap(osu_file_path)
             peace = PeaceCalculator()
@@ -411,11 +403,7 @@ class Score:
             'status': 2
         })
 
-        if res:
-            self.status = SubmissionStatus.PASSED
-        else:
-            self.status = SubmissionStatus.FAILED
-
+        self.status = SubmissionStatus.PASSED if res else SubmissionStatus.FAILED
         if res:
             # we have a score on the map.
             # save it as our previous best score.

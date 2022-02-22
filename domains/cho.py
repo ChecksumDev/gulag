@@ -47,14 +47,19 @@ async def bancho_http_handler(conn: Connection) -> bytes:
     """Handle a request from a web browser."""
     packets = glob.bancho_packets['all']
 
-    return b'<!DOCTYPE html>' + '<br>'.join((
-        f'Running circles v1.0.0',
-        f'Players online: {len(glob.players) - 1}',
-        '<a href="https://github.com/cmyui/gulag">Source code</a>',
-        '',
-        f'<b>Packets handled ({len(packets)})</b>',
-        '<br>'.join([f'{p.name} ({p.value})' for p in packets])
-    )).encode()
+    return (
+        b'<!DOCTYPE html>'
+        + '<br>'.join(
+            (
+                'Running circles v1.0.0',
+                f'Players online: {len(glob.players) - 1}',
+                '<a href="https://github.com/cmyui/gulag">Source code</a>',
+                '',
+                f'<b>Packets handled ({len(packets)})</b>',
+                '<br>'.join([f'{p.name} ({p.value})' for p in packets]),
+            )
+        ).encode()
+    )
 
 
 @domain.route('/', methods=['POST'])
@@ -64,11 +69,7 @@ async def bancho_handler(conn: Connection) -> HTTPResponse:
     else:
         # if the request has been forwarded, get the origin
         forwards = conn.headers['X-Forwarded-For'].split(',')
-        if len(forwards) != 1:
-            ip_str = forwards[0]
-        else:
-            ip_str = conn.headers['X-Real-IP']
-
+        ip_str = forwards[0] if len(forwards) != 1 else conn.headers['X-Real-IP']
     if ip_str in glob.cache['ip']:
         ip = glob.cache['ip'][ip_str]
     else:

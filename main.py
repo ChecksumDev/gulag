@@ -57,10 +57,7 @@ async def run_server() -> None:
 
     # fetch our server's endpoints; gulag supports
     # osu!'s handlers across multiple domains.
-    glob.app = cmyui.Server(
-        name=f'circles v1.0.0',
-        gzip=4, debug=glob.config.debug
-    )
+    glob.app = cmyui.Server(name='circles v1.0.0', gzip=4, debug=glob.config.debug)
 
     from domains.cho import domain as c_ppy_sh  # /c[e4-6]?.ppy.sh/
     from domains.osu import domain as osu_ppy_sh
@@ -68,7 +65,7 @@ async def run_server() -> None:
     from domains.map import domain as b_ppy_sh
     glob.app.add_domains({c_ppy_sh, osu_ppy_sh,
                           a_ppy_sh, b_ppy_sh})
-    
+
     # support both INET and UNIX sockets
     if misc.utils.is_inet_address(glob.config.server_addr):
         sock_family = socket.AF_INET
@@ -77,10 +74,10 @@ async def run_server() -> None:
     else:
         raise ValueError('Invalid socket address.')
 
-    if sock_family == socket.AF_UNIX:
-        # using unix socket - remove from filesystem if it exists
-        if os.path.exists(glob.config.server_addr):
-            os.remove(glob.config.server_addr)
+    if sock_family == socket.AF_UNIX and os.path.exists(
+        glob.config.server_addr
+    ):
+        os.remove(glob.config.server_addr)
 
     # create our transport layer socket; osu! uses tcp/ip
     with socket.socket(sock_family, socket.SOCK_STREAM) as listening_sock:

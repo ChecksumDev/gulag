@@ -48,13 +48,9 @@ class Mods(IntFlag):
         if self.value == Mods.NOMOD:
             return 'NM'
 
-        mod_str = []
         _dict = mod2modstr_dict  # global
 
-        for mod in Mods:
-            if self.value & mod:
-                mod_str.append(_dict[mod])
-
+        mod_str = [_dict[mod] for mod in Mods if self.value & mod]
         return ''.join(mod_str)
 
     def filter_invalid_combos(self, mode_vn: int) -> 'Mods':
@@ -76,45 +72,37 @@ class Mods(IntFlag):
             if self & Mods.PERFECT:
                 self &= ~Mods.PERFECT  # (NF|RX|AP)PF
 
-        if self & (Mods.RELAX | Mods.AUTOPILOT):
-            if self & Mods.NOFAIL:
-                self &= ~Mods.NOFAIL  # (RX|AP)NF
+        if self & (Mods.RELAX | Mods.AUTOPILOT) and self & Mods.NOFAIL:
+            self &= ~Mods.NOFAIL  # (RX|AP)NF
 
         if self & Mods.PERFECT and self & Mods.SUDDENDEATH:
             self &= ~Mods.SUDDENDEATH  # PFSD
 
         # 2. remove mode-unique mods from incorrect gamemodes
-        if mode_vn != 0:  # osu! specific
-            self &= ~OSU_SPECIFIC_MODS
-
-        # ctb & taiko have no unique mods
-
-        if mode_vn != 3:  # mania specific
+        if mode_vn == 0:
             self &= ~MANIA_SPECIFIC_MODS
 
-        # 3. mode-specific mod conflictions
-        if mode_vn == 0:
-            if self & Mods.AUTOPILOT:
-                if self & (Mods.SPUNOUT | Mods.RELAX):
-                    self &= ~Mods.AUTOPILOT  # (SO|RX)AP
+            if self & Mods.AUTOPILOT and self & (Mods.SPUNOUT | Mods.RELAX):
+                self &= ~Mods.AUTOPILOT  # (SO|RX)AP
 
-        if mode_vn == 3:
+        elif mode_vn == 3:
+            self &= ~OSU_SPECIFIC_MODS
+
             self &= ~Mods.RELAX  # rx is std/taiko/ctb common
             if self & Mods.HIDDEN and self & Mods.FADEIN:
                 self &= ~Mods.FADEIN  # HDFI
+
+        else:
+            self &= ~OSU_SPECIFIC_MODS
+
+            self &= ~MANIA_SPECIFIC_MODS
 
         # 4 remove multiple keymods
         # TODO: do this better
         keymods_used = self & KEY_MODS
 
         if bin(keymods_used).count('1') > 1:
-            # keep only the first
-            first_keymod = None
-            for mod in KEY_MODS:
-                if keymods_used & mod:
-                    first_keymod = mod
-                    break
-
+            first_keymod = next((mod for mod in KEY_MODS if keymods_used & mod), None)
             # remove all but the first keymod.
             self &= ~(keymods_used & ~first_keymod)
 
