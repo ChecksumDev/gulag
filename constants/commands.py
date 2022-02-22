@@ -140,19 +140,19 @@ async def _help(ctx: Context) -> Optional[str]:
     l = ['Individual commands',
          '-----------']
 
-    for cmd in regular_commands:
-        if not cmd.doc or ctx.player.priv & cmd.priv != cmd.priv:
-            # no doc, or insufficient permissions.
-            continue
-
-        l.append(f'{prefix}{cmd.triggers[0]}: {cmd.doc}')
+    l.extend(
+        f'{prefix}{cmd.triggers[0]}: {cmd.doc}'
+        for cmd in regular_commands
+        if cmd.doc and ctx.player.priv & cmd.priv == cmd.priv
+    )
 
     l.append('')  # newline
     l.extend(['Command sets',
               '-----------'])
 
-    for cmd_set in command_sets:
-        l.append(f'{prefix}{cmd_set.trigger}: {cmd_set.doc}')
+    l.extend(
+        f'{prefix}{cmd_set.trigger}: {cmd_set.doc}' for cmd_set in command_sets
+    )
 
     return '\n'.join(l)
 
@@ -301,16 +301,11 @@ async def recent(ctx: Context) -> Optional[str]:
     if s.passed:
         rank = s.rank if s.status == SubmissionStatus.BEST else 'NA'
         l.append(f'PASS {{{s.pp:.2f}pp #{rank}}}')
+    elif s.bmap.total_length != 0:
+        completion = s.time_elapsed / (s.bmap.total_length * 1000)
+        l.append(f'FAIL {{{completion * 100:.2f}% complete}})')
     else:
-        # XXX: prior to v3.2.0, gulag didn't parse total_length from
-        # the osu!api, and thus this can do some zerodivision moments.
-        # this can probably be removed in the future, or better yet
-        # replaced with a better system to fix the maps.
-        if s.bmap.total_length != 0:
-            completion = s.time_elapsed / (s.bmap.total_length * 1000)
-            l.append(f'FAIL {{{completion * 100:.2f}% complete}})')
-        else:
-            l.append('FAIL')
+        l.append('FAIL')
 
     return ' | '.join(l)
 
@@ -595,9 +590,7 @@ async def notes(ctx: Context) -> Optional[str]:
 
     l = [f'{t.name} notes:']
 
-    for (msg, time) in res:
-        l.append(f'[{time:%b %d %I:%M%p}] {msg}')
-
+    l.extend(f'[{time:%b %d %I:%M%p}] {msg}' for (msg, time) in res)
     return '\n'.join(l)
 
 
@@ -849,11 +842,7 @@ async def switchserv(ctx: Context) -> Optional[str]:
 @command(Privileges.Admin, aliases=['restart'])
 async def shutdown(ctx: Context) -> Optional[str]:
     """Gracefully shutdown the server."""
-    if ctx.trigger == 'restart':
-        _signal = signal.SIGUSR1
-    else:
-        _signal = signal.SIGTERM
-
+    _signal = signal.SIGUSR1 if ctx.trigger == 'restart' else signal.SIGTERM
     if ctx.args:  # shutdown after a delay
         if not (r_match := regexes.scaled_duration.match(ctx.args[0])):
             return f'Invalid syntax: !{ctx.trigger} <delay> <msg ...>'
@@ -927,8 +916,7 @@ async def fakeusers(ctx: Context) -> Optional[str]:
         _stats = packets.userStats(ctx.player)
 
         if _fake_users:
-            current_fakes = max([x.id for x in _fake_users]
-                                ) - (FAKE_ID_START - 1)
+            current_fakes = (max(x.id for x in _fake_users) - (FAKE_ID_START - 1))
         else:
             current_fakes = 0
 
@@ -1375,14 +1363,12 @@ if glob.config.advanced:
 async def mp_help(ctx: Context) -> Optional[str]:
     """Show all documented multiplayer commands the player can access."""
     prefix = glob.config.command_prefix
-    cmds = []
+    cmds = [
+        f'{prefix}mp {cmd.triggers[0]}: {cmd.doc}'
+        for cmd in mp_commands.commands
+        if cmd.doc and ctx.player.priv & cmd.priv == cmd.priv
+    ]
 
-    for cmd in mp_commands.commands:
-        if not cmd.doc or ctx.player.priv & cmd.priv != cmd.priv:
-            # no doc, or insufficient permissions.
-            continue
-
-        cmds.append(f'{prefix}mp {cmd.triggers[0]}: {cmd.doc}')
 
     return '\n'.join(cmds)
 
@@ -2016,14 +2002,12 @@ async def mp_pick(ctx: Context) -> Optional[str]:
 async def pool_help(ctx: Context) -> Optional[str]:
     """Show all documented mappool commands the player can access."""
     prefix = glob.config.command_prefix
-    cmds = []
+    cmds = [
+        f'{prefix}pool {cmd.triggers[0]}: {cmd.doc}'
+        for cmd in pool_commands.commands
+        if cmd.doc and ctx.player.priv & cmd.priv == cmd.priv
+    ]
 
-    for cmd in pool_commands.commands:
-        if not cmd.doc or ctx.player.priv & cmd.priv != cmd.priv:
-            # no doc, or insufficient permissions.
-            continue
-
-        cmds.append(f'{prefix}pool {cmd.triggers[0]}: {cmd.doc}')
 
     return '\n'.join(cmds)
 
@@ -2170,12 +2154,8 @@ async def pool_list(ctx: Context) -> Optional[str]:
 
     l = [f'Mappools ({len(pools)})']
 
-    for pool in pools:
-        l.append(
-            f'[{pool.created_at:%Y-%m-%d}] {pool.id}. '
-            f'{pool.name}, by {pool.created_by}.'
-        )
-
+    l.extend(f'[{pool.created_at:%Y-%m-%d}] {pool.id}. '
+            f'{pool.name}, by {pool.created_by}.' for pool in pools)
     return '\n'.join(l)
 
 
@@ -2195,8 +2175,10 @@ async def pool_info(ctx: Context) -> Optional[str]:
     datetime_fmt = f'Created at {_time} on {_date}'
     l = [f'{pool.id}. {pool.name}, by {pool.created_by} | {datetime_fmt}.']
 
-    for (mods, slot), bmap in pool.maps.items():
-        l.append(f'{mods!r}{slot}: {bmap.embed}')
+    l.extend(
+        f'{mods!r}{slot}: {bmap.embed}'
+        for (mods, slot), bmap in pool.maps.items()
+    )
 
     return '\n'.join(l)
 
@@ -2210,14 +2192,12 @@ async def pool_info(ctx: Context) -> Optional[str]:
 async def clan_help(ctx: Context) -> Optional[str]:
     """Show all documented clan commands the player can access."""
     prefix = glob.config.command_prefix
-    cmds = []
+    cmds = [
+        f'{prefix}clan {cmd.triggers[0]}: {cmd.doc}'
+        for cmd in clan_commands.commands
+        if cmd.doc and ctx.player.priv & cmd.priv == cmd.priv
+    ]
 
-    for cmd in clan_commands.commands:
-        if not cmd.doc or ctx.player.priv & cmd.priv != cmd.priv:
-            # no doc, or insufficient permissions.
-            continue
-
-        cmds.append(f'{prefix}clan {cmd.triggers[0]}: {cmd.doc}')
 
     return '\n'.join(cmds)
 
@@ -2284,10 +2264,8 @@ async def clan_disband(ctx: Context) -> Optional[str]:
 
         if not (clan := glob.clans.get(tag=' '.join(ctx.args).upper())):
             return 'Could not find a clan by that tag.'
-    else:
-        # disband the player's clan
-        if not (clan := ctx.player.clan):
-            return "You're not a member of a clan!"
+    elif not (clan := ctx.player.clan):
+        return "You're not a member of a clan!"
 
     # convert to mongodb format
     glob.db.clans.delete_one({
@@ -2368,8 +2346,9 @@ async def clan_list(ctx: Context) -> Optional[str]:
 
     msg = [f'gulag clans listing ({total_clans} total).']
 
-    for idx, clan in enumerate(glob.clans, offset):
-        msg.append(f'{idx + 1}. {clan!r}')
+    msg.extend(
+        f'{idx + 1}. {clan!r}' for idx, clan in enumerate(glob.clans, offset)
+    )
 
     return '\n'.join(msg)
 

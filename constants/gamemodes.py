@@ -73,10 +73,7 @@ class GameMode(IntEnum):
 
     @functools.cached_property
     def as_vanilla(self) -> int:
-        if self.value == self.ap_std:
-            return 0
-
-        return self.value % 4
+        return 0 if self.value == self.ap_std else self.value % 4
 
     @functools.cache
     def __repr__(self) -> str:
@@ -84,7 +81,4 @@ class GameMode(IntEnum):
 
     @functools.cache
     def __format__(self, fmt: str) -> str:
-        if fmt == 'sql':
-            return gm_sql[self.value]
-        else:
-            return str(self.value)
+        return gm_sql[self.value] if fmt == 'sql' else str(self.value)

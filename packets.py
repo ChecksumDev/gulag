@@ -246,14 +246,13 @@ class BanchoPacketReader:
         while self.body_view:  # len(self.view) < 7?
             p_type, p_len = self._read_header()
 
-            if p_type not in self.packet_map:
-                # packet type not handled, remove
-                # from internal buffer and continue.
-                if p_len != 0:
-                    self.body_view = self.body_view[p_len:]
-            else:
+            if p_type in self.packet_map:
                 # we can handle this one.
                 break
+            # packet type not handled, remove
+            # from internal buffer and continue.
+            if p_len != 0:
+                self.body_view = self.body_view[p_len:]
         else:
             raise StopIteration
 
@@ -508,11 +507,9 @@ def write_string(s: str) -> bytes:
     """ Write `s` into bytes (ULEB128 & string). """
     if s:
         encoded = s.encode()
-        ret = b'\x0b' + write_uleb128(len(encoded)) + encoded
+        return b'\x0b' + write_uleb128(len(encoded)) + encoded
     else:
-        ret = b'\x00'
-
-    return ret
+        return b'\x00'
 
 
 def write_i32_list(l: Sequence[int]) -> bytearray:
@@ -568,10 +565,7 @@ def write_match(m: Match, send_pw: bool = True) -> bytearray:
     # osu expects \x0b\x00 if there's a password but it's
     # not being sent, and \x00 if there's no password.
     if m.passwd:
-        if send_pw:
-            ret += write_string(m.passwd)
-        else:
-            ret += b'\x0b\x00'
+        ret += write_string(m.passwd) if send_pw else b'\x0b\x00'
     else:
         ret += b'\x00'
 

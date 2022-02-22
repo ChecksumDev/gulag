@@ -65,17 +65,11 @@ class Channel:
 
     @functools.cache
     def can_read(self, priv: Privileges) -> bool:
-        if not self.read_priv:
-            return True
-
-        return priv & self.read_priv
+        return True if not self.read_priv else priv & self.read_priv
 
     @functools.cache
     def can_write(self, priv: Privileges) -> bool:
-        if not self.write_priv:
-            return True
-
-        return priv & self.write_priv
+        return True if not self.write_priv else priv & self.write_priv
 
     def send(self, msg: str, sender: 'Player',
              to_self: bool = False) -> None:

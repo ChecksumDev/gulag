@@ -344,13 +344,7 @@ class Beatmap:
 
         if not bmap:
             if set_id <= 0:
-                # valid set id not provided, try getting it
-                # from the db, or the osu!api. we want to get
-                # the whole set cached all at once to minimize
-                # osu!api requests overall in the long run.
-                res = glob.db.maps.find_one({'md5': md5})
-
-                if res:
+                if res := glob.db.maps.find_one({'md5': md5}):
                     # found set id in db
                     set_id = res['set_id']
                 else:
@@ -369,8 +363,8 @@ class Beatmap:
             # fetching the set will put all maps in cache
             bmap = await cls._from_md5_cache(md5, check_updates=False)
 
-            if not bmap:
-                return
+        if not bmap:
+            return
 
         return bmap
 
@@ -380,13 +374,7 @@ class Beatmap:
         bmap = await cls._from_bid_cache(bid)
 
         if not bmap:
-            # try getting the set id either from the db,
-            # or the osu!api. we want to get the whole set
-            # cached all at once to minimize osu!api
-            # requests overall in the long run
-            res = glob.db.maps.find_one({'id': bid})
-
-            if res:
+            if res := glob.db.maps.find_one({'id': bid}):
                 # found set id in db
                 set_id = res['set_id']
             else:
@@ -405,8 +393,8 @@ class Beatmap:
             # fetching the set will put all maps in cache
             bmap = await cls._from_bid_cache(bid, check_updates=False)
 
-            if not bmap:
-                return
+        if not bmap:
+            return
 
         return bmap
 
@@ -436,13 +424,14 @@ class Beatmap:
         # quite a bit faster than using dt.strptime.
         _last_update = osuapi_resp['last_update']
         self.last_update = datetime(
-            year=int(_last_update[0:4]),
+            year=int(_last_update[:4]),
             month=int(_last_update[5:7]),
             day=int(_last_update[8:10]),
             hour=int(_last_update[11:13]),
             minute=int(_last_update[14:16]),
-            second=int(_last_update[17:19])
+            second=int(_last_update[17:19]),
         )
+
 
         self.total_length = int(osuapi_resp['total_length'])
 
@@ -459,11 +448,7 @@ class Beatmap:
 
         self.mode = GameMode(int(osuapi_resp['mode']))
 
-        if osuapi_resp['bpm'] is not None:
-            self.bpm = float(osuapi_resp['bpm'])
-        else:
-            self.bpm = 0.0
-
+        self.bpm = float(osuapi_resp['bpm']) if osuapi_resp['bpm'] is not None else 0.0
         self.cs = float(osuapi_resp['diff_size'])
         self.od = float(osuapi_resp['diff_overall'])
         self.ar = float(osuapi_resp['diff_approach'])
@@ -555,26 +540,20 @@ class BeatmapSet:
     def all_officially_ranked_or_approved(self) -> bool:
         """Whether all of the maps in the set are
            ranked or approved on official servers."""
-        for bmap in self.maps:
-            if (
+        return not any((
                 bmap.status not in (RankedStatus.Ranked,
                                     RankedStatus.Approved) or
                 bmap.frozen  # ranked/approved, but only on gulag
-            ):
-                return False
-        return True
+            ) for bmap in self.maps)
 
     @functools.cache
     def all_officially_loved(self) -> bool:
         """Whether all of the maps in the set are
            loved on official servers."""
-        for bmap in self.maps:
-            if (
+        return not any((
                 bmap.status != RankedStatus.Loved or
                 bmap.frozen  # loved, but only on gulag
-            ):
-                return False
-        return True
+            ) for bmap in self.maps)
 
     def _cache_expired(self) -> bool:
         """Whether the cached version of the set is
@@ -587,7 +566,7 @@ class BeatmapSet:
 
         # the delta between cache invalidations will increase depending
         # on how long it's been since the map was last updated on osu!
-        last_map_update = max([bmap.last_update for bmap in self.maps])
+        last_map_update = max(bmap.last_update for bmap in self.maps)
         update_delta = current_datetime - last_map_update
 
         # with a minimum of 2 hours, add 5 hours per year since it's update.
@@ -749,16 +728,16 @@ class BeatmapSet:
         if not bmap_set:
             bmap_set = await cls._from_bsid_sql(bsid)
 
+        if not bmap_set:
+            if not glob.has_internet:
+                return
+
+            bmap_set = await cls._from_bsid_osuapi(bsid)
+
             if not bmap_set:
-                if not glob.has_internet:
-                    return
+                return
 
-                bmap_set = await cls._from_bsid_osuapi(bsid)
-
-                if not bmap_set:
-                    return
-
-                did_api_request = True
+            did_api_request = True
 
         # cache the individual maps & set for future requests
         beatmapset_cache = glob.cache['beatmapset']

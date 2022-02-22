@@ -202,8 +202,7 @@ class Players(list[Player]):
                     val = make_safe_name(val)
 
                 return attr, val
-        else:
-            raise ValueError('Incorrect call to Players.get()')
+        raise ValueError('Incorrect call to Players.get()')
 
     def get(self, **kwargs: object) -> Optional[Player]:
         """Get a player by token, id, or name from cache."""
@@ -295,10 +294,7 @@ class MapPools(list[MapPool]):
     def __contains__(self, o: Union[MapPool, str]) -> bool:
         """Check whether internal list contains `o`."""
         # Allow string to be passed to compare vs. name.
-        if isinstance(o, str):
-            return o in [p.name for p in self]
-        else:
-            return o in self
+        return o in [p.name for p in self] if isinstance(o, str) else o in self
 
     def get_by_name(self, name: str) -> Optional[MapPool]:
         """Get a pool from the list by `name`."""
@@ -362,10 +358,7 @@ class Clans(list[Clan]):
     def __contains__(self, o: Union[Clan, str]) -> bool:
         """Check whether internal list contains `o`."""
         # Allow string to be passed to compare vs. name.
-        if isinstance(o, str):
-            return o in [c.name for c in self]
-        else:
-            return o in self
+        return o in [c.name for c in self] if isinstance(o, str) else o in self
 
     def get(self, **kwargs: object) -> Optional[Clan]:
         """Get a clan by name, tag, or id."""
